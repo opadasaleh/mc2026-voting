@@ -1,15 +1,44 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
+import { cn } from "@/lib/utils";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+
+const helveticaArabic = localFont({
+  src: [
+    {
+      path: "../fonts/helvetica/HelveticaNeueLT Arabic 45 Light.ttf",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../fonts/helvetica/HelveticaNeueLT Arabic 75 Bold.ttf",
+      weight: "700",
+      style: "normal",
+    },
+  ],
+  variable: "--font-helvetica-arabic",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const nexa = localFont({
+  src: [
+    {
+      path: "../fonts/nexa/Nexa-Book.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../fonts/nexa/Nexa-Bold.woff2",
+      weight: "700",
+      style: "normal",
+    },
+    {
+      path: "../fonts/nexa/Nexa-ExtraBold.woff2",
+      weight: "800",
+      style: "normal",
+    },
+  ],
+  variable: "--font-nexa",
 });
 
 export const metadata: Metadata = {
@@ -21,9 +50,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+      className={cn(
+        "h-full",
+        "antialiased",
+        nexa.variable,
+        helveticaArabic.variable
+      )}    >
+      <body className="min-h-full flex flex-col">
+        {children}
+      </body>
     </html>
   );
 }
