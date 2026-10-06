@@ -9,7 +9,7 @@
   --card-foreground: #00007b;
   --popover: #ffffff;
   --popover-foreground: #00007b;
-  --primary: #7f32d9;
+  --primary: #00007b;
   --primary-foreground: #ffffff;
   --secondary: #f8d749;
   --secondary-foreground: #00007b;
@@ -21,7 +21,7 @@
   --destructive-foreground: #ffffff;
   --border: #e4e4e7;
   --input: #e4e4e7;
-  --ring: #7f32d9;
+  --ring: #00007b;
   --chart-1: #7f32d9;
   --chart-2: #f8d749;
   --chart-3: #4a68d8;
@@ -176,7 +176,8 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground selection:bg-secondary;
     letter-spacing: var(--tracking-normal);
+    
   }
 }
