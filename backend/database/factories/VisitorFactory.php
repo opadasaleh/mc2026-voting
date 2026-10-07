@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Visitor;
+use App\Support\PhoneNumber;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,8 +23,7 @@ class VisitorFactory extends Factory
         return [
             'full_name' => fake()->name(),
             'phone_encrypted' => $phone,
-            // Test data only; the real HMAC blind index arrives with the OTP step.
-            'phone_hash' => hash('sha256', $phone),
+            'phone_hash' => PhoneNumber::hash($phone),
         ];
     }
 }

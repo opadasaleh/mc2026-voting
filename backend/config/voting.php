@@ -48,6 +48,37 @@ return [
 
     'photos_disk' => env('PHOTOS_DISK', 'public'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Visitors, OTP and SMS
+    |--------------------------------------------------------------------------
+    |
+    | The phone number is the visitor's UID: normalised to E.164 (local numbers
+    | are read as default_region) and looked up through an HMAC blind index keyed
+    | with PHONE_HASH_KEY. Keep that key secret and backed up: without it,
+    | existing visitors can no longer be matched by phone.
+    |
+    | SMS_DRIVER "log" writes messages to storage/logs/sms.log instead of
+    | sending them (development and demos only).
+    |
+    */
+
+    'phone' => [
+        'default_region' => env('PHONE_DEFAULT_REGION', 'JO'),
+        'hash_key' => env('PHONE_HASH_KEY'),
+    ],
+
+    'sms' => [
+        'driver' => env('SMS_DRIVER', 'log'),
+    ],
+
+    'otp' => [
+        'requests_per_phone_per_15_minutes' => (int) env('OTP_REQUESTS_PER_PHONE', 5),
+        'verifications_per_phone_per_minute' => (int) env('OTP_VERIFICATIONS_PER_PHONE', 10),
+    ],
+
+    'visitor_token_hours' => (int) env('VISITOR_TOKEN_HOURS', 12),
+
     'rate_limits' => [
         'venue_ip_per_minute' => (int) env('RATE_LIMIT_VENUE_IP', 5000),
         'offsite_ip_per_minute' => (int) env('RATE_LIMIT_OFFSITE_IP', 30),

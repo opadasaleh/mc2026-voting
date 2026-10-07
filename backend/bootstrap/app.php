@@ -2,6 +2,7 @@
 
 use App\Exceptions\ApiError;
 use App\Http\Middleware\EnsureOnSite;
+use App\Http\Middleware\EnsureVisitorToken;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,9 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['on-site' => EnsureOnSite::class]);
-        // The gate needs the bound Event model.
+        $middleware->alias(['on-site' => EnsureOnSite::class, 'visitor' => EnsureVisitorToken::class]);
+        // Both need the bound Event model.
         $middleware->appendToPriorityList(SubstituteBindings::class, EnsureOnSite::class);
+        $middleware->appendToPriorityList(SubstituteBindings::class, EnsureVisitorToken::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -65,6 +65,13 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Used by the "log" SMS driver (development / demo only).
+        'sms' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/sms.log'),
+            'level' => 'info',
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

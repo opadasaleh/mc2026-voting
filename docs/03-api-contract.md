@@ -2,7 +2,7 @@
 
 Digital Voting System (multi-event; first event: Maker Collective 2026) · Laravel API consumed by the Next.js frontend (visitor voting page + TV results screen).
 
-> Status: revision 3. **Implemented so far:** `GET /events/{event}/access-check`, the on-site gate, the error shape and the IP-aware rate limits. The other endpoints are still to be built and may change slightly; the frontend developer should confirm this covers both screens.
+> Status: revision 3. **Implemented so far:** `GET /events/{event}/access-check`, the on-site gate, `POST …/auth/otp/request`, `POST …/auth/otp/verify`, `GET …/me`, `POST …/auth/logout`, the error shape and the rate limits. Until CPF's SMS gateway is connected, codes are written to `backend/storage/logs/sms.log` instead of being sent. The other endpoints are still to be built and may change slightly; the frontend developer should confirm this covers both screens.
 > The admin panel (Filament) is **not** part of this API; it is a separate server-rendered interface.
 
 ## 1. Conventions
@@ -47,9 +47,10 @@ Digital Voting System (multi-event; first event: Maker Collective 2026) · Larav
 ### Order of checks (for write endpoints)
 
 All: event lookup (`EVENT_NOT_FOUND`) first.
-`OTP request`: validation → on-site gate → voting open → rate limit → send.
+`OTP request`: on-site gate → validation → voting open → per-phone limits (resend cooldown, 5 per 15 min) → send.
+`OTP verify`: on-site gate → validation → per-phone limit → code check (attempts capped, row-locked).
 `Vote`: authentication (token valid **and bound to this event**) → on-site gate → voting open → validation → business rules → insert.
-Keeping the gate before the business rules means off-site clients learn nothing about the system.
+Keeping the gate first means off-site clients learn nothing about the system.
 
 ## 2. Endpoints at a glance
 

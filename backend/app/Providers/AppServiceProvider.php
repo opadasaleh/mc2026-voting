@@ -6,6 +6,8 @@ use App\Exceptions\ApiError;
 use App\Models\Event;
 use App\Models\User;
 use App\Services\OnSite\VenueAccess;
+use App\Services\Sms\LogSmsSender;
+use App\Services\Sms\SmsSender;
 use App\Support\Audit;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\Event as EventBus;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use InvalidArgumentException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,7 +27,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Add the CPF-selected gateway here when it is chosen.
+        $this->app->bind(SmsSender::class, fn () => match (config('voting.sms.driver')) {
+            'log' => new LogSmsSender,
+            default => throw new InvalidArgumentException('Unknown SMS_DRIVER ['.config('voting.sms.driver').'].'),
+        });
     }
 
     /**
