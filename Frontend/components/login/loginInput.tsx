@@ -17,21 +17,24 @@ import { Input } from "@/components/ui/input"
 import Image from "next/image"
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 
 
 export function InputFieldgroup() {
     const [isLoading, setIsLoading] = useState(false)
+    const router = useRouter()
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
+        const formData = new FormData(event.currentTarget)
+        
         setIsLoading(true)
 
         await new Promise((resolve) => setTimeout(resolve, 2000))
 
         setIsLoading(false)
 
-        const formData = new FormData(event.currentTarget)
     
         const name = formData.get("name")
         let phone = String(formData.get("phone"))
@@ -46,12 +49,18 @@ export function InputFieldgroup() {
         const fullPhone = `${countryCode}${phone}`
     
         const data = {
-            name: name,
+            full_name: name,
             phone: fullPhone,
         }
-    
+
+        sessionStorage.setItem("phone", fullPhone)
+
+        router.push("/otp")
     
         console.log(data)
+        
+        // router.push(`/otp?phone=${encodeURIComponent(fullPhone)}`)
+        
         console.log(name)
         console.log(fullPhone)
         console.log("submitted")
@@ -80,7 +89,7 @@ export function InputFieldgroup() {
                         <Input
                             id="name"
                             name="name"
-                            placeholder="Jordan Lee"
+                            placeholder="Obada Saleh"
                             required
                         />
                     </Field>
@@ -104,7 +113,7 @@ export function InputFieldgroup() {
                                 id="phone"
                                 name="phone"
                                 type="tel"
-                                placeholder="07xxxxxxxx"
+                                placeholder="7xxxxxxxx"
                                 required
                             />
                         </div>
