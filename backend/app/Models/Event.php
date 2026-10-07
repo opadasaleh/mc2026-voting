@@ -11,15 +11,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'slug', 'name', 'description', 'is_active', 'voting_enabled', 'opens_at', 'closes_at',
-    'access_mode', 'allowed_cidrs', 'geofence', 'venue_wifi_name',
+    'allowed_cidrs', 'venue_wifi_name',
     'otp_ttl_seconds', 'otp_max_attempts', 'otp_resend_cooldown_seconds',
 ])]
 class Event extends Model
 {
     /** @use HasFactory<EventFactory> */
     use HasFactory;
-
-    public const ACCESS_MODES = ['ip', 'geo', 'either', 'both'];
 
     /**
      * Get the attributes that should be cast.
@@ -34,7 +32,6 @@ class Event extends Model
             'opens_at' => 'datetime',
             'closes_at' => 'datetime',
             'allowed_cidrs' => 'array',
-            'geofence' => 'array',
             'otp_ttl_seconds' => 'integer',
             'otp_max_attempts' => 'integer',
             'otp_resend_cooldown_seconds' => 'integer',

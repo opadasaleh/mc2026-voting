@@ -17,7 +17,7 @@ class AccessCheckController extends Controller
 {
     public function __invoke(Request $request, Event $event, VenueAccess $venueAccess): JsonResponse
     {
-        $decision = $venueAccess->checkRequest($event, $request);
+        $decision = $venueAccess->check($event, $request->ip());
 
         return response()->json([
             'data' => $decision->toArray() + ['venue_wifi_name' => $event->venue_wifi_name],

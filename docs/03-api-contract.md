@@ -31,8 +31,7 @@ Digital Voting System (multi-event; first event: Maker Collective 2026) · Larav
 | HTTP | `code` | When |
 |---|---|---|
 | 401 | `UNAUTHENTICATED` | Missing/invalid/expired token, **or a token issued for a different event**. `details.reason`: `missing` \| `invalid` \| `expired` \| `wrong_event` — on any of these, send the visitor through the OTP flow for this event |
-| 403 | `OFF_SITE` | Request is outside the event's allowed IP range / geofence. `details`: `{ reason, venue_wifi_name }` so the No access page can name the network |
-| 403 | `LOCATION_REQUIRED` | The event's mode needs location and `lat`/`lng` were not sent. `details`: `{ reason, venue_wifi_name }` |
+| 403 | `OFF_SITE` | Request is not coming from the event's venue Wi-Fi (public IP outside `allowed_cidrs`). `details`: `{ reason, venue_wifi_name }` so the No access page can name the network |
 | 403 | `VOTING_CLOSED` | Voting is not currently open for this event (`details.status`: `closed` \| `scheduled`) |
 | 403 | `UNVERIFIED` | Visitor's registration for this event is not verified (defensive; should not occur with a valid token) |
 | 404 | `EVENT_NOT_FOUND` | Unknown or inactive event slug |
@@ -108,13 +107,12 @@ Only active events. Optional — the normal entry point is the event's own QR co
 
 ### `GET /events/{event}/access-check`
 
-Optional query: `lat`, `lng`. Lets the UI show "you're outside the venue" **before** the visitor types anything.
+Lets the UI show "you're outside the venue" **before** the visitor types anything.
 
 ```json
-{ "data": { "on_site": false, "mode": "ip", "requires_location": false,
-            "reason": "OUTSIDE_IP_RANGE", "venue_wifi_name": "MC2026-Guest" } }
+{ "data": { "on_site": false, "reason": "OUTSIDE_IP_RANGE", "venue_wifi_name": "MC2026-Guest" } }
 ```
-`reason` ∈ `null` | `OUTSIDE_IP_RANGE` | `OUTSIDE_GEOFENCE` | `LOCATION_REQUIRED`. `requires_location` tells the frontend whether to ask the browser for geolocation permission (only when the event's mode uses the geofence). `venue_wifi_name` (nullable) is the network name to show on the **No access** page. If `on_site` is `false`, route the visitor to that page (see §7).
+`reason` ∈ `null` | `OUTSIDE_IP_RANGE`. `venue_wifi_name` (nullable) is the network name to show on the **No access** page. If `on_site` is `false`, route the visitor to that page (see §7).
 
 ### `GET /events/{event}/categories`
 
@@ -146,7 +144,7 @@ sequenceDiagram
 
     V->>F: Scan the event QR code
     F->>A: GET /events/mc2026 and /access-check
-    A-->>F: voting status, on_site, requires_location, venue_wifi_name
+    A-->>F: voting status, on_site, venue_wifi_name
     alt on_site is false
         F-->>V: No access page, join the event Wi-Fi and try again
     end
@@ -170,15 +168,15 @@ sequenceDiagram
 ### `POST /events/{event}/auth/otp/request` — on-site gate
 
 ```json
-{ "full_name": "Lina Haddad", "phone": "0791234567", "lat": 31.9539, "lng": 35.9106 }
+{ "full_name": "Lina Haddad", "phone": "0791234567" }
 ```
-`lat`/`lng` are required only when `requires_location` is true (geofence modes; not needed for the default Wi-Fi-only rule). `full_name`: 2–80 chars, trimmed. `phone`: any common format, normalised to the UID (see §1). No password.
+`full_name`: 2–80 chars, trimmed. `phone`: any common format, normalised to the UID (see §1). No password.
 
 `202`
 ```json
 { "data": { "expires_in": 300, "resend_after": 60 } }
 ```
-Finds or creates the visitor for that phone, creates/reuses **this event's** registration (unverified), and sends a 6-digit SMS code. This happens even if the phone was verified for a different event — verification is per event. The response is identical whether or not the phone was seen before (no phone enumeration). Errors: `EVENT_NOT_FOUND`, `VALIDATION_FAILED`, `OFF_SITE`, `LOCATION_REQUIRED`, `VOTING_CLOSED`, `OTP_RATE_LIMITED`.
+Finds or creates the visitor for that phone, creates/reuses **this event's** registration (unverified), and sends a 6-digit SMS code. This happens even if the phone was verified for a different event — verification is per event. The response is identical whether or not the phone was seen before (no phone enumeration). Errors: `EVENT_NOT_FOUND`, `VALIDATION_FAILED`, `OFF_SITE`, `VOTING_CLOSED`, `OTP_RATE_LIMITED`.
 
 ### `POST /events/{event}/auth/otp/verify` — on-site gate
 
@@ -190,7 +188,7 @@ Finds or creates the visitor for that phone, creates/reuses **this event's** reg
 { "data": { "token": "1|AbC…", "token_type": "Bearer", "expires_at": "2026-11-14T18:00:00Z",
             "visitor": { "full_name": "Lina Haddad" } } }
 ```
-Marks the phone verified **for this event** and returns the visitor token bound to this event (lifetime: 12 h or until the event's `closes_at`, whichever is sooner). The frontend keeps it in memory/`sessionStorage` **per event slug** and sends it as `Authorization: Bearer`. Errors: `EVENT_NOT_FOUND`, `VALIDATION_FAILED`, `OFF_SITE`, `LOCATION_REQUIRED`, `OTP_INVALID`, `OTP_EXPIRED`, `TOO_MANY_REQUESTS`.
+Marks the phone verified **for this event** and returns the visitor token bound to this event (lifetime: 12 h or until the event's `closes_at`, whichever is sooner). The frontend keeps it in memory/`sessionStorage` **per event slug** and sends it as `Authorization: Bearer`. Errors: `EVENT_NOT_FOUND`, `VALIDATION_FAILED`, `OFF_SITE`, `OTP_INVALID`, `OTP_EXPIRED`, `TOO_MANY_REQUESTS`.
 
 ### `POST /events/{event}/auth/logout` — visitor token
 `204 No Content`. Revokes the current token.
@@ -213,7 +211,7 @@ Source of truth for "which categories have I already voted in" (F3) **for this e
 ### `POST /events/{event}/votes` — visitor token, on-site gate
 
 ```json
-{ "category_id": 1, "exhibitor_id": 12, "lat": 31.9539, "lng": 35.9106 }
+{ "category_id": 1, "exhibitor_id": 12 }
 ```
 
 | Result | HTTP | Meaning |
@@ -271,25 +269,16 @@ data: {"event":{…},"generated_at":"…","total_voters":412,"total_votes":1190,
 
 ---
 
-## 7. On-site access control (F11) — per event
+## 7. On-site access control (F11) — venue Wi-Fi only
 
-Decided **server-side** from the event's database settings (`access_mode`, `allowed_cidrs`, `geofence`) on `otp/request`, `otp/verify` and `votes`. Each event can have its own venue and rules.
+Decided **server-side** from the event's `allowed_cidrs` on `otp/request`, `otp/verify` and `votes`. Each event can have its own venue.
 
-### MC2026 default — venue Wi-Fi only (strict)
+### The rule
 
-Voting happens only at the venue, and the venue provides Wi-Fi covering the whole event area, so the rule for MC2026 is **venue Wi-Fi only**: the check is **the venue Wi-Fi's public IP address(es)**. This is the strictest option: it cannot be faked from a phone, so it is the fairest against remote voting.
+Voting happens only at the venue, and the venue provides Wi-Fi covering the whole event area, so the rule is **venue Wi-Fi only**: the client's **public IP must be inside one of the event's `allowed_cidrs`** (the venue Wi-Fi's public egress ranges, **IPv4 and IPv6** if the guest network has IPv6). Every visitor behind the Wi-Fi's NAT shares these addresses, so one range check admits all of them and nobody else. A phone cannot forge its public IP, so this is the fairest rule against remote voting. There is no location / GPS check (it would be client-supplied and spoofable, and needs a permission prompt).
 
-- **Trade-off, stated honestly:** a visitor who cannot join the Wi-Fi (overloaded network, VPN, Private Relay, phone problem) cannot vote. Mitigations: venue Wi-Fi sized for 1,000+ clients, signage with the network name, clear troubleshooting steps on the No access page, and — because the mode is a per-event database setting — the Makerspace can relax it **live** from the admin panel (e.g. to `either`) if Wi-Fi problems appear on the day.
-- `access_mode = ip`; geofence off; `allowed_cidrs` = the Wi-Fi's public egress ranges, **IPv4 and IPv6** if the guest network has IPv6. Every visitor behind the Wi-Fi's NAT shares these addresses, so one range check admits all of them and nobody else.
-- Unlike GPS, a client cannot forge its public IP, so this is the strong signal. The geofence is an **optional backup** (`either` mode) for when the venue cannot guarantee a stable IP.
+- **Trade-off, stated honestly:** a visitor who cannot join the Wi-Fi (overloaded network, VPN, Private Relay, phone problem) cannot vote. Mitigations: venue Wi-Fi sized for 1,000+ clients, signage with the network name, clear troubleshooting steps on the No access page, and admins can add IP ranges **live** in Event settings (e.g. a backup internet line).
 - If the API runs on a server **inside** the venue network, visitors have private LAN addresses; put the LAN range in `allowed_cidrs` instead. Same mechanism.
-
-| `access_mode` | Passes when |
-|---|---|
-| `ip` | Client IP is inside one of `allowed_cidrs` |
-| `geo` | `lat`/`lng` fall inside the geofence radius |
-| `either` | IP matches **or** geofence matches |
-| `both` | IP matches **and** geofence matches |
 
 ### Off-site visitors: the "No access" page
 
@@ -311,7 +300,6 @@ Voting happens only at the venue, and the venue provides Wi-Fi covering the whol
 | IPv6 | Phone reaches the API from an IPv6 address that is not in the list | Get the venue's IPv6 prefix too, or disable IPv6 on the guest SSID |
 | Two internet lines / failover | Public IP changes mid-event | Allowlist every egress range; admin can edit it live |
 | IP changes on the day | Everyone is blocked | Admin panel **"Use my current IP"** button; rehearse before the event |
-| Geofence (if enabled) | Location is client-supplied and spoofable | Backup only; never the sole check unless IP is unavailable |
 
 ### What can and cannot fool the on-site check
 

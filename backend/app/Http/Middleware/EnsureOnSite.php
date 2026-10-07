@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * The on-site gate for write endpoints (OTP request/verify, votes): rejects with
- * 403 OFF_SITE or LOCATION_REQUIRED unless the request comes from the event venue.
+ * 403 OFF_SITE unless the request comes from the venue Wi-Fi.
  */
 class EnsureOnSite
 {
@@ -25,7 +25,7 @@ class EnsureOnSite
             throw ApiError::eventNotFound();
         }
 
-        $decision = $this->venueAccess->checkRequest($event, $request);
+        $decision = $this->venueAccess->check($event, $request->ip());
 
         if (! $decision->onSite) {
             throw ApiError::notOnSite($decision, $event->venue_wifi_name);

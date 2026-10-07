@@ -31,13 +31,10 @@ class ApiError extends RuntimeException
 
     public static function notOnSite(AccessDecision $decision, ?string $venueWifiName): self
     {
-        $details = ['reason' => $decision->reason, 'venue_wifi_name' => $venueWifiName];
-
-        if ($decision->reason === AccessDecision::LOCATION_REQUIRED) {
-            return new self('LOCATION_REQUIRED', 'Allow location access to vote at this event.', 403, $details);
-        }
-
-        return new self('OFF_SITE', 'Voting is only available on the event Wi-Fi.', 403, $details);
+        return new self('OFF_SITE', 'Voting is only available on the event Wi-Fi.', 403, [
+            'reason' => $decision->reason,
+            'venue_wifi_name' => $venueWifiName,
+        ]);
     }
 
     /**

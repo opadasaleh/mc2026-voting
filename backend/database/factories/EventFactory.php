@@ -25,7 +25,6 @@ class EventFactory extends Factory
             'name' => Str::title($name),
             'is_active' => true,
             'voting_enabled' => false,
-            'access_mode' => 'ip',
             'allowed_cidrs' => ['203.0.113.0/24'],
         ];
     }

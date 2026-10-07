@@ -128,11 +128,6 @@ class SchemaConstraintsTest extends TestCase
         $this->assertRejectedByDatabase(fn () => Visitor::factory()->create(['phone_hash' => $visitor->phone_hash]), self::UNIQUE);
     }
 
-    public function test_events_reject_an_unknown_access_mode(): void
-    {
-        $this->assertRejectedByDatabase(fn () => Event::factory()->create(['access_mode' => 'anywhere']), self::CHECK);
-    }
-
     public function test_events_reject_a_window_that_closes_before_it_opens(): void
     {
         $this->assertRejectedByDatabase(fn () => Event::factory()->create([

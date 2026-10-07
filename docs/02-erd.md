@@ -2,7 +2,7 @@
 
 Digital Voting System (first use: Maker Collective 2026) · Database: Supabase PostgreSQL · Schema owned by Laravel migrations.
 
-> Status: **implemented** in `backend/database/migrations` and running on Supabase (revision 4: at most 3 categories per event, one category per exhibitor). Column types are the actual Postgres types. All timestamps are `timestamptz` (stored in UTC). Every table has `created_at` / `updated_at` except `votes`, `otp_codes` and `audit_logs`, which only have `created_at` because they are never updated.
+> Status: **implemented** in `backend/database/migrations` and running on Supabase (revision 5: Wi-Fi-only on-site rule, at most 3 categories per event, one category per exhibitor). Column types are the actual Postgres types. All timestamps are `timestamptz` (stored in UTC). Every table has `created_at` / `updated_at` except `votes`, `otp_codes` and `audit_logs`, which only have `created_at` because they are never updated.
 
 ## 0. Multi-event model (what changed)
 
@@ -39,9 +39,7 @@ erDiagram
         bool voting_enabled
         timestamptz opens_at
         timestamptz closes_at
-        string access_mode
         jsonb allowed_cidrs
-        jsonb geofence
         string venue_wifi_name
         int otp_ttl_seconds
         int otp_max_attempts
@@ -136,9 +134,7 @@ One row per voting event; also its configuration (F10, F11, spec §6 "database-d
 | `is_active` | bool | Inactive events are hidden from the public API (404) and remain visible to admins (archive instead of delete) |
 | `voting_enabled` | bool | Manual open/close switch (F10) |
 | `opens_at` / `closes_at` | timestamptz null | Optional window. CHECK `closes_at > opens_at` when both set |
-| `access_mode` | varchar | `ip` \| `geo` \| `either` \| `both` (F11) |
 | `allowed_cidrs` | jsonb | Array of venue public IP ranges — **IPv4 and IPv6** — e.g. `["203.0.113.0/24", "2001:db8:1::/48"]`. Venue visitors share these addresses (Wi-Fi NAT) |
-| `geofence` | jsonb null | `{"lat":…,"lng":…,"radius_m":…}`; optional backup to the IP check |
 | `venue_wifi_name` | varchar null | Wi-Fi network name shown on the "No access" page, e.g. `MC2026-Guest` |
 | `otp_ttl_seconds` | int default 300 | OTP lifetime |
 | `otp_max_attempts` | int default 5 | Wrong-code attempts before the code is invalidated |
@@ -291,7 +287,7 @@ Append-only record of sensitive admin actions: login, event/settings change, vot
 | F5 / F6 Registration + OTP | `visitors`, `event_registrations`, `otp_codes` |
 | F9 Exhibitor management | `exhibitors` (one `category_id` each), `photo_path`; max 3 `categories` per event |
 | F10 Voting window | `events.voting_enabled / opens_at / closes_at` |
-| F11 On-site access control | `events.access_mode / allowed_cidrs / geofence` |
+| F11 On-site access control | `events.allowed_cidrs` (venue Wi-Fi only) |
 | F12 Duplicate-vote prevention | `votes` UNIQUE + `visitors.phone_hash` UNIQUE + verified registration |
 | F13 Results export | aggregate over `votes` per event |
 | F14 Visitor data storage | `visitors` (encrypted phone) + `event_registrations`, linked to `votes` |

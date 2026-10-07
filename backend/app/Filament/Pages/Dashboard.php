@@ -31,7 +31,7 @@ class Dashboard extends BaseDashboard
                 ->icon(Heroicon::OutlinedPlay)
                 ->color('success')
                 ->requiresConfirmation()
-                ->modalDescription(fn (): string => $this->event()->allowed_cidrs === [] && $this->event()->access_mode !== 'geo'
+                ->modalDescription(fn (): string => $this->event()->allowed_cidrs === []
                     ? 'Warning: no venue Wi-Fi IPs are set, so nobody will pass the on-site check. Open anyway?'
                     : 'Visitors on the venue Wi-Fi will be able to vote. The optional window in Event settings still applies.')
                 ->visible(fn (): bool => ! $this->event()->voting_enabled)

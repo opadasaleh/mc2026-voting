@@ -27,7 +27,6 @@ class OnSiteHttpTest extends TestCase
 
         $this->event = Event::factory()->create([
             'slug' => 'mc2026',
-            'access_mode' => 'ip',
             'allowed_cidrs' => ['203.0.113.0/24'],
             'venue_wifi_name' => 'MC2026-Guest',
         ]);
@@ -49,8 +48,6 @@ class OnSiteHttpTest extends TestCase
             ->assertOk()
             ->assertExactJson(['data' => [
                 'on_site' => true,
-                'mode' => 'ip',
-                'requires_location' => false,
                 'reason' => null,
                 'venue_wifi_name' => 'MC2026-Guest',
             ]]);
@@ -81,16 +78,11 @@ class OnSiteHttpTest extends TestCase
             ]]);
     }
 
-    public function test_the_gate_asks_for_location_when_the_event_needs_it(): void
+    public function test_sending_a_location_does_not_help_off_site_visitors(): void
     {
-        $this->event->update(['access_mode' => 'geo', 'geofence' => ['lat' => 31.95, 'lng' => 35.91, 'radius_m' => 300]]);
-
-        $this->fromIp(self::VENUE_IP)->postJson('/api/v1/events/mc2026/_gate-probe')
+        $this->fromIp(self::OFFSITE_IP)->postJson('/api/v1/events/mc2026/_gate-probe', ['lat' => 31.95, 'lng' => 35.91])
             ->assertForbidden()
-            ->assertJsonPath('error.code', 'LOCATION_REQUIRED');
-
-        $this->fromIp(self::VENUE_IP)->postJson('/api/v1/events/mc2026/_gate-probe', ['lat' => 31.95, 'lng' => 35.91])
-            ->assertOk();
+            ->assertJsonPath('error.code', 'OFF_SITE');
     }
 
     public function test_a_spoofed_forwarded_for_header_is_ignored(): void
@@ -121,14 +113,6 @@ class OnSiteHttpTest extends TestCase
                 ->assertNotFound()
                 ->assertJsonPath('error.code', 'EVENT_NOT_FOUND');
         }
-    }
-
-    public function test_invalid_coordinates_fail_validation(): void
-    {
-        $this->fromIp(self::VENUE_IP)->getJson('/api/v1/events/mc2026/access-check?lat=200&lng=35.9')
-            ->assertUnprocessable()
-            ->assertJsonPath('error.code', 'VALIDATION_FAILED')
-            ->assertJsonStructure(['error' => ['details' => ['fields' => ['lat']]]]);
     }
 
     public function test_off_site_ips_are_throttled(): void

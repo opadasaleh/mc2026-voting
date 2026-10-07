@@ -22,7 +22,6 @@ class VotingStatusOverview extends StatsOverviewWidget
         $event = Filament::getTenant();
         $status = $event->votingStatus();
         $venueIps = count($event->allowed_cidrs ?? []);
-        $usesWifi = $event->access_mode !== 'geo';
 
         return [
             Stat::make('Voting', ucfirst($status))
@@ -37,8 +36,8 @@ class VotingStatusOverview extends StatsOverviewWidget
                     default => 'Not accepting votes',
                 }),
             Stat::make('Venue Wi-Fi IPs', $venueIps)
-                ->color($usesWifi && $venueIps === 0 ? 'danger' : 'gray')
-                ->description($usesWifi && $venueIps === 0 ? 'None set: nobody can pass the on-site check' : 'Rule: '.$event->access_mode),
+                ->color($venueIps === 0 ? 'danger' : 'gray')
+                ->description($venueIps === 0 ? 'None set: nobody can pass the on-site check' : 'Only visitors on the venue Wi-Fi can vote'),
             Stat::make('Categories / exhibitors', $event->categories()->where('is_active', true)->count().' / '.$event->exhibitors()->where('is_active', true)->count()),
             Stat::make('Verified visitors', $event->registrations()->whereNotNull('phone_verified_at')->count()),
             Stat::make('Votes cast', $event->votes()->count()),

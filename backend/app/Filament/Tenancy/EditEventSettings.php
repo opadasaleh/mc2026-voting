@@ -8,13 +8,11 @@ use App\Support\Audit;
 use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Pages\Tenancy\EditTenantProfile;
-use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
@@ -75,19 +73,8 @@ class EditEventSettings extends EditTenantProfile
                     ]),
 
                 Section::make('On-site access')
-                    ->description('Who counts as "at the venue". Wi-Fi only is the strictest: it cannot be faked from a phone.')
+                    ->description('Only visitors connected to the venue Wi-Fi can register and vote: their public IP must be in this list. A phone cannot fake it.')
                     ->schema([
-                        Select::make('access_mode')
-                            ->label('Rule')
-                            ->required()
-                            ->native(false)
-                            ->live()
-                            ->options([
-                                'ip' => 'Venue Wi-Fi only (recommended)',
-                                'either' => 'Venue Wi-Fi OR inside the geofence',
-                                'both' => 'Venue Wi-Fi AND inside the geofence',
-                                'geo' => 'Geofence only (spoofable, not recommended)',
-                            ]),
                         TagsInput::make('allowed_cidrs')
                             ->label('Venue Wi-Fi public IPs')
                             ->placeholder('203.0.113.0/24')
@@ -105,13 +92,6 @@ class EditEventSettings extends EditTenantProfile
                             ->label('Venue Wi-Fi name')
                             ->maxLength(255)
                             ->helperText('Shown on the visitors\' "No access" page. Display only; never checked.'),
-                        Grid::make(3)
-                            ->visible(fn (Get $get): bool => $get('access_mode') !== 'ip')
-                            ->schema([
-                                TextInput::make('geofence.lat')->label('Latitude')->numeric()->minValue(-90)->maxValue(90)->required(),
-                                TextInput::make('geofence.lng')->label('Longitude')->numeric()->minValue(-180)->maxValue(180)->required(),
-                                TextInput::make('geofence.radius_m')->label('Radius (m)')->numeric()->minValue(10)->maxValue(5000)->required(),
-                            ]),
                     ]),
 
                 Section::make('OTP policy')
