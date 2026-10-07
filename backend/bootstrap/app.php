@@ -1,9 +1,14 @@
 <?php
 
+use App\Exceptions\ApiError;
+use App\Http\Middleware\EnsureOnSite;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Validation\ValidationException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -13,10 +18,21 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias(['on-site' => EnsureOnSite::class]);
+        // The gate needs the bound Event model.
+        $middleware->appendToPriorityList(SubstituteBindings::class, EnsureOnSite::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // API errors use the contract's { "error": { code, message, details } } shape.
+        $exceptions->render(fn (ValidationException $e, Request $request) => $request->is('api/*')
+            ? ApiError::validationFailed($e->errors())->render()
+            : null);
+
+        $exceptions->render(fn (ThrottleRequestsException $e, Request $request) => $request->is('api/*')
+            ? ApiError::tooManyRequests((int) ($e->getHeaders()['Retry-After'] ?? 60))->render()->withHeaders($e->getHeaders())
+            : null);
     })->create();
