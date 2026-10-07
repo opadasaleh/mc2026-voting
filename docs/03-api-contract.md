@@ -2,7 +2,7 @@
 
 Digital Voting System (multi-event; first event: Maker Collective 2026) · Laravel API consumed by the Next.js frontend (visitor voting page + TV results screen).
 
-> Status: **draft for review** (step 1, revision 2 — multi-event). The frontend developer should confirm this covers both screens before any code is written.
+> Status: revision 3. **Implemented so far:** `GET /events/{event}/access-check`, the on-site gate, the error shape and the IP-aware rate limits. The other endpoints are still to be built and may change slightly; the frontend developer should confirm this covers both screens.
 > The admin panel (Filament) is **not** part of this API; it is a separate server-rendered interface.
 
 ## 1. Conventions
@@ -31,8 +31,8 @@ Digital Voting System (multi-event; first event: Maker Collective 2026) · Larav
 | HTTP | `code` | When |
 |---|---|---|
 | 401 | `UNAUTHENTICATED` | Missing/invalid/expired token, **or a token issued for a different event**. `details.reason`: `missing` \| `invalid` \| `expired` \| `wrong_event` — on any of these, send the visitor through the OTP flow for this event |
-| 403 | `OFF_SITE` | Request is outside the event's allowed IP range / geofence |
-| 403 | `LOCATION_REQUIRED` | The event's mode needs location and `lat`/`lng` were not sent |
+| 403 | `OFF_SITE` | Request is outside the event's allowed IP range / geofence. `details`: `{ reason, venue_wifi_name }` so the No access page can name the network |
+| 403 | `LOCATION_REQUIRED` | The event's mode needs location and `lat`/`lng` were not sent. `details`: `{ reason, venue_wifi_name }` |
 | 403 | `VOTING_CLOSED` | Voting is not currently open for this event (`details.status`: `closed` \| `scheduled`) |
 | 403 | `UNVERIFIED` | Visitor's registration for this event is not verified (defensive; should not occur with a valid token) |
 | 404 | `EVENT_NOT_FOUND` | Unknown or inactive event slug |
@@ -42,7 +42,7 @@ Digital Voting System (multi-event; first event: Maker Collective 2026) · Larav
 | 422 | `OTP_INVALID` | Wrong code (`details.attempts_remaining`) |
 | 422 | `OTP_EXPIRED` | Code expired, consumed, or attempts exhausted — request a new one |
 | 429 | `OTP_RATE_LIMITED` | Too many OTP requests (`details.retry_after` seconds; also `Retry-After` header) |
-| 429 | `TOO_MANY_REQUESTS` | Generic throttle on any other endpoint |
+| 429 | `TOO_MANY_REQUESTS` | Generic throttle on any other endpoint (`details.retry_after` seconds; also `Retry-After` header) |
 
 ### Order of checks (for write endpoints)
 
@@ -311,6 +311,14 @@ Voting happens only at the venue, and the venue provides Wi-Fi covering the whol
 | Two internet lines / failover | Public IP changes mid-event | Allowlist every egress range; admin can edit it live |
 | IP changes on the day | Everyone is blocked | Admin panel **"Use my current IP"** button; rehearse before the event |
 | Geofence (if enabled) | Location is client-supplied and spoofable | Backup only; never the sole check unless IP is unavailable |
+
+### What can and cannot fool the on-site check
+
+- **The Wi-Fi name is never checked.** A browser cannot read which network a phone is on, and the API does not ask. `venue_wifi_name` is display text only, so a fake hotspot with the same name gains nothing: its traffic leaves through the attacker's own internet line, with a non-venue IP, and is rejected with `OFF_SITE`.
+- **The source IP cannot be forged.** Requests run over TCP and HTTPS, so a forged source address never gets a response back.
+- **A fake `X-Forwarded-For` header is ignored.** The header is only honoured from proxies listed in `TRUSTED_PROXIES`; from a client it has no effect (covered by an automated test).
+- **Residual risk: relaying through someone at the venue.** An accomplice on the real Wi-Fi could run a VPN or tunnel so that remote friends' traffic leaves through the venue IP. This takes deliberate setup, and every remote voter still needs their own phone number and OTP, so it does not scale cheaply. Mitigation: ask the venue to enable client isolation and block VPN protocols on the guest network.
+- **A hotspot inside the venue that uplinks to the real Wi-Fi** passes, but its users are physically on-site, so it is not remote voting. Their API traffic stays HTTPS-encrypted.
 
 ### Setup and rehearsal checklist
 

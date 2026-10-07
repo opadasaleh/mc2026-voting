@@ -2,7 +2,7 @@
 
 Digital Voting System (first use: Maker Collective 2026) · Database: Supabase PostgreSQL · Schema owned by Laravel migrations.
 
-> Status: **draft for review** (step 1, revision 2 — multi-event). Column types are Postgres types; Laravel migration names may differ slightly.
+> Status: **implemented** in `backend/database/migrations` and running on Supabase (revision 3). Column types are the actual Postgres types. All timestamps are `timestamptz` (stored in UTC). Every table has `created_at` / `updated_at` except `votes`, `otp_codes` and `audit_logs`, which only have `created_at` because they are never updated.
 
 ## 0. Multi-event model (what changed)
 
@@ -63,7 +63,7 @@ erDiagram
         text short_description
         string photo_path
         bool is_active
-        timestamp deleted_at
+        timestamptz deleted_at
     }
     CATEGORY_EXHIBITOR {
         bigint event_id FK
@@ -81,16 +81,16 @@ erDiagram
         bigint event_id FK
         bigint visitor_id FK
         string full_name
-        timestamp phone_verified_at
+        timestamptz phone_verified_at
         inet registered_ip
     }
     OTP_CODES {
         bigint id PK
         bigint event_registration_id FK
         string code_hash
-        timestamp expires_at
+        timestamptz expires_at
         smallint attempts
-        timestamp consumed_at
+        timestamptz consumed_at
         inet ip
     }
     VOTES {
@@ -100,14 +100,14 @@ erDiagram
         bigint category_id FK
         bigint exhibitor_id FK
         inet ip
-        timestamp created_at
+        timestamptz created_at
     }
     USERS {
         bigint id PK
         string username UK
         string password
         text two_factor_secret
-        timestamp two_factor_confirmed_at
+        timestamptz two_factor_confirmed_at
     }
     AUDIT_LOGS {
         bigint id PK
@@ -116,7 +116,7 @@ erDiagram
         string action
         jsonb meta
         inet ip
-        timestamp created_at
+        timestamptz created_at
     }
 ```
 
@@ -147,7 +147,7 @@ One row per voting event; also its configuration (F10, F11, spec §6 "database-d
 | `otp_ttl_seconds` | int default 300 | OTP lifetime |
 | `otp_max_attempts` | int default 5 | Wrong-code attempts before the code is invalidated |
 | `otp_resend_cooldown_seconds` | int default 60 | Minimum gap between OTP requests |
-| `created_at` / `updated_at` | timestamp | |
+| `created_at` / `updated_at` | timestamptz | |
 
 Voting is **open** iff `voting_enabled = true` AND (`opens_at` is null or now ≥ `opens_at`) AND (`closes_at` is null or now < `closes_at`). Event rows are read through a short-lived cache (≈ 5 s) to keep the hot path off the database. Events with registrations or votes cannot be hard-deleted.
 
@@ -177,7 +177,7 @@ Exhibitors **of one event**.
 | `short_description` | text | Shown on the voting card |
 | `photo_path` | varchar null | Object key in Supabase Storage (S3-compatible); public URL is built by the API |
 | `is_active` | bool | |
-| `deleted_at` | timestamp null | Soft delete (F9 "remove"); hard delete is blocked once votes exist |
+| `deleted_at` | timestamptz null | Soft delete (F9 "remove"); hard delete is blocked once votes exist |
 
 Extra constraint: `UNIQUE (event_id, id)`.
 
@@ -207,7 +207,7 @@ One row per phone number, shared by all events. Holds identity only — **no ver
 | `full_name` | varchar | Latest full name given in a *verified* registration (used for the outreach list) |
 | `phone_encrypted` | text | E.164 number, encrypted at rest (Laravel `encrypted` cast, app key). Readable in admin context only |
 | `phone_hash` | char(64) UNIQUE | HMAC-SHA256 of the E.164 number with a dedicated server secret — the **blind index** used for uniqueness and lookups |
-| `created_at` / `updated_at` | timestamp | |
+| `created_at` / `updated_at` | timestamptz | |
 
 ### `event_registrations` (per-event verification)
 A visitor's participation in **one** event. This is where "OTP must be confirmed again for every new event" is enforced: a visitor may vote in an event only if their registration for **that** event has `phone_verified_at` set.
@@ -218,9 +218,9 @@ A visitor's participation in **one** event. This is where "OTP must be confirmed
 | `event_id` | bigint FK → `events.id` | |
 | `visitor_id` | bigint FK → `visitors.id` | |
 | `full_name` | varchar | Full name entered for this event (copied to `visitors.full_name` only after verification, so nobody can rename someone else's record by requesting an OTP for their number) |
-| `phone_verified_at` | timestamp null | Set when this event's OTP is verified (F6) |
+| `phone_verified_at` | timestamptz null | Set when this event's OTP is verified (F6) |
 | `registered_ip` | inet null | Audit |
-| `created_at` / `updated_at` | timestamp | |
+| `created_at` / `updated_at` | timestamptz | |
 
 Constraint: `UNIQUE (event_id, visitor_id)` (also the target for the votes foreign key).
 
@@ -230,11 +230,11 @@ Constraint: `UNIQUE (event_id, visitor_id)` (also the target for the votes forei
 | `id` | bigint PK | |
 | `event_registration_id` | bigint FK → `event_registrations.id` ON DELETE CASCADE | OTPs belong to a registration, i.e. to one event |
 | `code_hash` | varchar | Hash of the 6-digit code — the plain code is never stored or logged (except by the dev-only log SMS provider) |
-| `expires_at` | timestamp | TTL from `events.otp_ttl_seconds` |
+| `expires_at` | timestamptz | TTL from `events.otp_ttl_seconds` |
 | `attempts` | smallint | Failed verifications; code is invalidated at `events.otp_max_attempts` |
-| `consumed_at` | timestamp null | Single use |
+| `consumed_at` | timestamptz null | Single use |
 | `ip` | inet null | Requesting IP (rate-limit / audit) |
-| `created_at` | timestamp | |
+| `created_at` | timestamptz | |
 
 Index: `(event_registration_id, created_at DESC)` to find the latest active code.
 
@@ -247,7 +247,7 @@ Index: `(event_registration_id, created_at DESC)` to find the latest active code
 | `category_id` | bigint | |
 | `exhibitor_id` | bigint | |
 | `ip` | inet null | Audit |
-| `created_at` | timestamp | |
+| `created_at` | timestamptz | |
 
 Constraints and indexes:
 - **`UNIQUE (visitor_id, category_id)`** — one vote per verified phone per category (F2, F12). A category belongs to exactly one event, so this is automatically "per event". Enforced by the database, so it holds under concurrency, retries and multiple app instances.
@@ -257,7 +257,7 @@ Constraints and indexes:
 - Votes are **immutable**: no update path exists. "Reset results" deletes **one event's** votes only (registrations and verification are kept); it is audit-logged and should be preceded by an export.
 
 ### `users` (admins)
-Makerspace staff only. Visitors are **not** in this table. All admins can manage all events.
+Makerspace staff only. Visitors are **not** in this table. All admins can manage all events. Admins log in with **username + password** (no email is stored), plus TOTP MFA. Laravel's `remember_token` column also exists.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -265,7 +265,7 @@ Makerspace staff only. Visitors are **not** in this table. All admins can manage
 | `username` | varchar UNIQUE | |
 | `password` | varchar | Bcrypt/Argon2 hash |
 | `two_factor_secret` | text null | TOTP secret, encrypted |
-| `two_factor_confirmed_at` | timestamp null | MFA enrolled |
+| `two_factor_confirmed_at` | timestamptz null | MFA enrolled |
 
 ### `audit_logs`
 Append-only record of sensitive admin actions: login, event/settings change, voting opened/closed, **results reset**, **exports** (results / visitor list), display-token creation/revocation.
@@ -278,7 +278,7 @@ Append-only record of sensitive admin actions: login, event/settings change, vot
 | `action` | varchar | e.g. `votes.reset`, `visitors.export` |
 | `meta` | jsonb | Details (old/new values, counts) |
 | `ip` | inet null | |
-| `created_at` | timestamp | |
+| `created_at` | timestamptz | |
 
 ### Tokens (Sanctum `personal_access_tokens`)
 - **Visitor token** — issued after OTP verification **for one event**; abilities `["vote", "event:<event_id>"]`. Using it on another event's endpoints is rejected, which forces the OTP flow for that event.
@@ -287,7 +287,7 @@ Append-only record of sensitive admin actions: login, event/settings change, vot
 ## 3. Privacy & security of stored data (F14, Privacy NFR)
 
 - **Phone numbers** are stored encrypted (`phone_encrypted`); uniqueness and login lookups use only the HMAC `phone_hash`, so a database leak alone does not reveal numbers, and the HMAC secret is held outside the database. Admins read the real number through the admin panel (encrypted cast decrypts server-side).
-- **Row Level Security is ENABLED on every table with no policies.** Supabase exposes tables through a public PostgREST API using the anon key; with RLS on and no policies, that API returns nothing. Laravel connects with the privileged database role and is the only access path.
+- **Row Level Security is ENABLED on every table with no policies.** Supabase exposes tables through a public PostgREST API using the anon key; with RLS on and no policies, that API returns nothing. Laravel connects with the privileged database role and is the only access path. As defence in depth, the same migration also **revokes all table privileges from Supabase's `anon` and `authenticated` roles**, and a test fails if any table is ever created without RLS.
 - **OTP codes** and **tokens** are stored hashed. Sanctum tokens are stored as SHA-256 hashes by default.
 - Visitor lists (names + phones) are available **only** in the admin panel and its CSV exports (per event, and global de-duplicated), which require admin login + MFA and are audit-logged.
 - **Open item:** the registration screen should show a short notice that the name and phone number are stored for future Makerspace outreach (consent wording to be provided by CPF / Makerspace).
