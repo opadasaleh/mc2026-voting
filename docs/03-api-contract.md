@@ -2,7 +2,7 @@
 
 Digital Voting System (multi-event; first event: Maker Collective 2026) · Laravel API consumed by the Next.js frontend (visitor voting page + TV results screen).
 
-> Status: revision 3. **Implemented so far:** `GET /events/{event}/access-check`, the on-site gate, `POST …/auth/otp/request`, `POST …/auth/otp/verify`, `GET …/me`, `POST …/auth/logout`, the error shape and the rate limits. Until CPF's SMS gateway is connected, codes are written to `backend/storage/logs/sms.log` instead of being sent. The other endpoints are still to be built and may change slightly; the frontend developer should confirm this covers both screens.
+> Status: revision 3. **Implemented:** every visitor endpoint (`GET /events`, `GET /events/{event}`, `GET …/categories`, `GET …/access-check`, `POST …/auth/otp/request`, `POST …/auth/otp/verify`, `GET …/me`, `POST …/auth/logout`, `POST …/votes`), the error shape and the rate limits. **Still to build:** `GET …/results` and `GET …/results/stream` (TV screen). Until CPF's SMS gateway is connected, codes are written to `backend/storage/logs/sms.log` instead of being sent. The other endpoints are still to be built and may change slightly; the frontend developer should confirm this covers both screens.
 > The admin panel (Filament) is **not** part of this API; it is a separate server-rendered interface.
 
 ## 1. Conventions

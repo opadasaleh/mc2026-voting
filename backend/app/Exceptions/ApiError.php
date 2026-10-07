@@ -81,6 +81,19 @@ class ApiError extends RuntimeException
         return new self('UNAUTHENTICATED', 'Please verify your phone number for this event.', 401, ['reason' => $reason]);
     }
 
+    public static function alreadyVoted(int $categoryId, int $exhibitorId): self
+    {
+        return new self('ALREADY_VOTED', 'You have already voted in this category.', 409, [
+            'category_id' => $categoryId,
+            'exhibitor_id' => $exhibitorId,
+        ]);
+    }
+
+    public static function invalidExhibitorForCategory(): self
+    {
+        return new self('INVALID_EXHIBITOR_FOR_CATEGORY', 'This exhibitor is not part of that category.', 422);
+    }
+
     public static function unverified(): self
     {
         return new self('UNVERIFIED', 'Please verify your phone number for this event.', 403);

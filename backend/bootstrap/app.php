@@ -20,9 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias(['on-site' => EnsureOnSite::class, 'visitor' => EnsureVisitorToken::class]);
-        // Both need the bound Event model.
-        $middleware->appendToPriorityList(SubstituteBindings::class, EnsureOnSite::class);
+        // Both need the bound Event model; on routes with both, the token is checked before the Wi-Fi gate.
         $middleware->appendToPriorityList(SubstituteBindings::class, EnsureVisitorToken::class);
+        $middleware->appendToPriorityList(EnsureVisitorToken::class, EnsureOnSite::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

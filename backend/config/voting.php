@@ -82,6 +82,7 @@ return [
     'rate_limits' => [
         'venue_ip_per_minute' => (int) env('RATE_LIMIT_VENUE_IP', 5000),
         'offsite_ip_per_minute' => (int) env('RATE_LIMIT_OFFSITE_IP', 30),
+        'votes_per_token_per_minute' => (int) env('RATE_LIMIT_VOTES_PER_TOKEN', 30),
     ],
 
 ];

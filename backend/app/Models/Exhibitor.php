@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 #[Fillable(['event_id', 'category_id', 'name', 'short_description', 'photo_path', 'is_active'])]
 class Exhibitor extends Model
@@ -45,6 +46,14 @@ class Exhibitor extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    /**
+     * Public URL of the photo on the configured photos disk, or null.
+     */
+    public function photoUrl(): ?string
+    {
+        return $this->photo_path ? Storage::disk(config('voting.photos_disk'))->url($this->photo_path) : null;
     }
 
     /**

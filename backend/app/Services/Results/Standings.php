@@ -6,7 +6,6 @@ use App\Models\Category;
 use App\Models\Event;
 use App\Models\Exhibitor;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Per-category standings for an event (F7), in the shape of GET /events/{event}/results.
@@ -39,7 +38,6 @@ class Standings
 
         $categories = Category::where('event_id', $event->getKey())->orderBy('sort_order')->orderBy('name')->get();
         $exhibitors = Exhibitor::withTrashed()->where('event_id', $event->getKey())->get()->keyBy('id');
-        $disk = Storage::disk(config('voting.photos_disk'));
 
         $result = [];
 
@@ -66,7 +64,7 @@ class Standings
                     'rank' => 1 + $rows->where('votes', '>', $row['votes'])->count(),
                     'exhibitor_id' => $row['exhibitor']->id,
                     'name' => $row['exhibitor']->name,
-                    'photo_url' => $row['exhibitor']->photo_path ? $disk->url($row['exhibitor']->photo_path) : null,
+                    'photo_url' => $row['exhibitor']->photoUrl(),
                     'votes' => $row['votes'],
                 ])->all(),
             ];

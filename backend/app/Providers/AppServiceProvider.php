@@ -58,13 +58,24 @@ class AppServiceProvider extends ServiceProvider
 
         // Venue visitors share one public IP, so they only get a safety ceiling; everyone else is throttled per IP.
         RateLimiter::for('venue-ip', function (Request $request) {
-            $event = $request->route('event');
-            $event = $event instanceof Event ? $event : Event::where('slug', (string) $event)->first();
             $ip = (string) $request->ip();
+            $event = $request->route('event');
 
-            return $event && app(VenueAccess::class)->ipAllowed($event, $ip)
+            // Routes without an event (GET /events): venue IPs of any active event count.
+            $events = match (true) {
+                $event instanceof Event => collect([$event]),
+                $event !== null => Event::where('slug', (string) $event)->get(),
+                default => Event::where('is_active', true)->get(),
+            };
+            $atVenue = $events->contains(fn (Event $candidate) => app(VenueAccess::class)->ipAllowed($candidate, $ip));
+
+            return $atVenue
                 ? Limit::perMinute(config('voting.rate_limits.venue_ip_per_minute'))->by('venue:'.$ip)
                 : Limit::perMinute(config('voting.rate_limits.offsite_ip_per_minute'))->by('offsite:'.$ip);
         });
+
+        // Per visitor token (the token is not resolved yet when the limiter runs, so key on its hash).
+        RateLimiter::for('votes', fn (Request $request) => Limit::perMinute(config('voting.rate_limits.votes_per_token_per_minute'))
+            ->by('votes:'.hash('sha256', (string) $request->bearerToken())));
     }
 }

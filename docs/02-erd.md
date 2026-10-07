@@ -141,7 +141,7 @@ One row per voting event; also its configuration (F10, F11, spec §6 "database-d
 | `otp_resend_cooldown_seconds` | int default 60 | Minimum gap between OTP requests |
 | `created_at` / `updated_at` | timestamptz | |
 
-Voting is **open** iff `voting_enabled = true` AND (`opens_at` is null or now ≥ `opens_at`) AND (`closes_at` is null or now < `closes_at`). Event rows are read through a short-lived cache (≈ 5 s) to keep the hot path off the database. Events with registrations or votes cannot be hard-deleted.
+Voting is **open** iff `voting_enabled = true` AND (`opens_at` is null or now ≥ `opens_at`) AND (`closes_at` is null or now < `closes_at`). (Planned for the scaling step: read event rows through a short-lived cache to keep the hot path off the database.) Events with registrations or votes cannot be hard-deleted.
 
 ### `categories`
 The award categories **of one event** (names to be confirmed by the Makerspace team). Nothing is hard-coded. **At most 3 per event** (`voting.max_categories_per_event`; the admin panel disables "New category" at the limit).
