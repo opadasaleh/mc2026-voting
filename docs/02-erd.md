@@ -106,8 +106,8 @@ erDiagram
         bigint id PK
         string username UK
         string password
-        text two_factor_secret
-        timestamptz two_factor_confirmed_at
+        text app_authentication_secret
+        text app_authentication_recovery_codes
     }
     AUDIT_LOGS {
         bigint id PK
@@ -264,8 +264,8 @@ Makerspace staff only. Visitors are **not** in this table. All admins can manage
 | `id` | bigint PK | |
 | `username` | varchar UNIQUE | |
 | `password` | varchar | Bcrypt/Argon2 hash |
-| `two_factor_secret` | text null | TOTP secret, encrypted |
-| `two_factor_confirmed_at` | timestamptz null | MFA enrolled |
+| `app_authentication_secret` | text null | TOTP secret for the authenticator app, encrypted (Filament MFA) |
+| `app_authentication_recovery_codes` | text null | One-time recovery codes, encrypted |
 
 ### `audit_logs`
 Append-only record of sensitive admin actions: login, event/settings change, voting opened/closed, **results reset**, **exports** (results / visitor list), display-token creation/revocation.

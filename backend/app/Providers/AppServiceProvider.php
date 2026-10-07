@@ -4,10 +4,15 @@ namespace App\Providers;
 
 use App\Exceptions\ApiError;
 use App\Models\Event;
+use App\Models\User;
 use App\Services\OnSite\VenueAccess;
+use App\Support\Audit;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event as EventBus;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -35,6 +40,14 @@ class AppServiceProvider extends ServiceProvider
         // {event} in API paths is the slug of an active event.
         Route::bind('event', fn (string $slug) => Event::where('slug', $slug)->where('is_active', true)->first()
             ?? throw ApiError::eventNotFound());
+
+        // Admin sign-ins (successful and failed) go to the audit log.
+        EventBus::listen(fn (Login $login) => $login->user instanceof User
+            ? Audit::record('admin.login', userId: $login->user->getKey())
+            : null);
+        EventBus::listen(fn (Failed $failed) => Audit::record('admin.login_failed', meta: [
+            'username' => $failed->credentials['username'] ?? null,
+        ]));
 
         // Venue visitors share one public IP, so they only get a safety ceiling; everyone else is throttled per IP.
         RateLimiter::for('venue-ip', function (Request $request) {
