@@ -20,17 +20,17 @@ class Mc2026Seeder extends Seeder
         'best-craftsmanship' => 'Best Craftsmanship',
     ];
 
-    /** @var array<string, array{0: string, 1: list<string>}> */
+    /** @var array<string, array{0: string, 1: string}> exhibitor => [description, category slug] */
     private const EXHIBITORS = [
-        'Smart Greenhouse' => ['Arduino-controlled greenhouse that waters plants from soil-moisture readings.', ['people-choice', 'most-innovative']],
-        'Robo Arm' => ['3D-printed six-axis robotic arm you can drive from your phone.', ['most-innovative', 'best-craftsmanship']],
-        'Solar Water Purifier' => ['Low-cost solar still that turns grey water into drinking water.', ['people-choice', 'most-innovative']],
-        'Wooden Synth' => ['Hand-built analog synthesizer in a walnut case.', ['people-choice', 'best-craftsmanship']],
-        'Braille Tutor' => ['Pocket device that teaches Braille letters with vibrating pins.', ['people-choice', 'most-innovative']],
-        'Upcycled Furniture Studio' => ['Chairs and shelves rebuilt from discarded pallets and doors.', ['best-craftsmanship']],
-        'Drone Mapping Kit' => ['DIY drone that maps farmland and spots dry patches.', ['most-innovative']],
-        "Kids' Coding Blocks" => ['Wooden blocks that teach children to program a small robot.', ['people-choice']],
-        'Laser-cut Lamps' => ['A collection of lamps cut from plywood and acrylic.', ['best-craftsmanship']],
+        'Smart Greenhouse' => ['Arduino-controlled greenhouse that waters plants from soil-moisture readings.', 'people-choice'],
+        'Solar Water Purifier' => ['Low-cost solar still that turns grey water into drinking water.', 'people-choice'],
+        "Kids' Coding Blocks" => ['Wooden blocks that teach children to program a small robot.', 'people-choice'],
+        'Robo Arm' => ['3D-printed six-axis robotic arm you can drive from your phone.', 'most-innovative'],
+        'Braille Tutor' => ['Pocket device that teaches Braille letters with vibrating pins.', 'most-innovative'],
+        'Drone Mapping Kit' => ['DIY drone that maps farmland and spots dry patches.', 'most-innovative'],
+        'Wooden Synth' => ['Hand-built analog synthesizer in a walnut case.', 'best-craftsmanship'],
+        'Upcycled Furniture Studio' => ['Chairs and shelves rebuilt from discarded pallets and doors.', 'best-craftsmanship'],
+        'Laser-cut Lamps' => ['A collection of lamps cut from plywood and acrylic.', 'best-craftsmanship'],
     ];
 
     public function run(): void
@@ -56,15 +56,10 @@ class Mc2026Seeder extends Seeder
             )->id;
         }
 
-        foreach (self::EXHIBITORS as $name => [$description, $categories]) {
-            $exhibitor = Exhibitor::firstOrCreate(
+        foreach (self::EXHIBITORS as $name => [$description, $category]) {
+            Exhibitor::firstOrCreate(
                 ['event_id' => $event->id, 'name' => $name],
-                ['short_description' => $description, 'is_active' => true],
-            );
-
-            $exhibitor->categories()->syncWithPivotValues(
-                array_map(fn (string $slug) => $categoryIds[$slug], $categories),
-                ['event_id' => $event->id],
+                ['category_id' => $categoryIds[$category], 'short_description' => $description, 'is_active' => true],
             );
         }
     }

@@ -22,7 +22,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Unique;
 
 /**
- * The award categories of the current event.
+ * The award categories of the current event (at most voting.max_categories_per_event).
  */
 class CategoryResource extends Resource
 {
@@ -75,8 +75,9 @@ class CategoryResource extends Resource
             ])
             ->recordActions([
                 EditAction::make(),
+                // Exhibitors (and their votes) belong to a category; move or delete them first.
                 DeleteAction::make()
-                    ->hidden(fn (Category $record): bool => $record->votes()->exists()),
+                    ->hidden(fn (Category $record): bool => $record->exhibitors()->withTrashed()->exists()),
             ]);
     }
 

@@ -127,7 +127,7 @@ Active categories of this event in `sort_order`, each with its active exhibitors
     ] }
 ] }
 ```
-An exhibitor entered in several categories appears under each.
+Each exhibitor competes in exactly one category, so it appears once. An event has at most 3 categories.
 
 ---
 

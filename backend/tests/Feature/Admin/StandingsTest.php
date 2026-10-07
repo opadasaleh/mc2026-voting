@@ -65,8 +65,7 @@ class StandingsTest extends TestCase
 
         $other = Event::factory()->create();
         $otherCategory = Category::factory()->for($other)->create();
-        $otherExhibitor = Exhibitor::factory()->for($other)->create();
-        $otherCategory->exhibitors()->attach($otherExhibitor->id, ['event_id' => $other->id]);
+        $otherExhibitor = Exhibitor::factory()->inCategory($otherCategory)->create();
         $registration = EventRegistration::factory()->for($other)->create();
         Vote::create(['event_id' => $other->id, 'visitor_id' => $registration->visitor_id, 'category_id' => $otherCategory->id, 'exhibitor_id' => $otherExhibitor->id]);
 
@@ -82,12 +81,7 @@ class StandingsTest extends TestCase
      */
     private function enter(array $names): array
     {
-        return array_map(function (string $name) {
-            $exhibitor = Exhibitor::factory()->for($this->event)->create(['name' => $name]);
-            $this->category->exhibitors()->attach($exhibitor->id, ['event_id' => $this->event->id]);
-
-            return $exhibitor;
-        }, $names);
+        return array_map(fn (string $name) => Exhibitor::factory()->inCategory($this->category)->create(['name' => $name]), $names);
     }
 
     private function votesFor(Exhibitor $exhibitor, int $count): void

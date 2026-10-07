@@ -28,16 +28,12 @@ class Standings
      */
     public function forEvent(Event $event): array
     {
-        // votes per (category, exhibitor) entry, including entries with none
-        $entries = DB::table('category_exhibitor as ce')
-            ->leftJoin('votes as v', function ($join) {
-                $join->on('v.event_id', '=', 'ce.event_id')
-                    ->on('v.category_id', '=', 'ce.category_id')
-                    ->on('v.exhibitor_id', '=', 'ce.exhibitor_id');
-            })
-            ->where('ce.event_id', $event->getKey())
-            ->groupBy('ce.category_id', 'ce.exhibitor_id')
-            ->select('ce.category_id', 'ce.exhibitor_id', DB::raw('count(v.id) as votes'))
+        // votes per exhibitor (each exhibitor competes in exactly one category), including those with none
+        $entries = DB::table('exhibitors as e')
+            ->leftJoin('votes as v', 'v.exhibitor_id', '=', 'e.id')
+            ->where('e.event_id', $event->getKey())
+            ->groupBy('e.category_id', 'e.id')
+            ->select('e.category_id', 'e.id as exhibitor_id', DB::raw('count(v.id) as votes'))
             ->get()
             ->groupBy('category_id');
 

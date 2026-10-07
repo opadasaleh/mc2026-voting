@@ -100,32 +100,43 @@ class AdminPanelTest extends TestCase
             ->assertHasActionErrors(['slug']);
     }
 
-    public function test_an_exhibitor_is_entered_in_categories_of_the_current_event(): void
+    public function test_new_categories_are_blocked_once_the_event_has_three(): void
     {
+        Category::factory()->for($this->event)->count(2)->create();
         $this->signIn();
+
+        Livewire::test(ManageCategories::class)->assertActionEnabled('create');
+
+        Category::factory()->for($this->event)->create();
+
+        Livewire::test(ManageCategories::class)->assertActionDisabled('create');
+    }
+
+    public function test_an_exhibitor_is_created_in_one_category_of_the_current_event(): void
+    {
         $category = Category::factory()->for($this->event)->create();
+        $this->signIn();
 
         Livewire::test(ManageExhibitors::class)
             ->callAction('create', data: [
                 'name' => 'Robo Arm',
                 'short_description' => 'A robotic arm.',
-                'categories' => [$category->id],
+                'category_id' => $category->id,
                 'is_active' => true,
             ])
             ->assertHasNoActionErrors();
 
         $exhibitor = Exhibitor::where('name', 'Robo Arm')->sole();
         $this->assertSame($this->event->id, $exhibitor->event_id);
-        $this->assertSame($this->event->id, $exhibitor->categories()->sole()->pivot->event_id);
+        $this->assertSame($category->id, $exhibitor->category_id);
     }
 
-    public function test_an_exhibitor_cannot_be_removed_from_a_category_it_has_votes_in(): void
+    public function test_the_category_of_an_exhibitor_with_votes_is_locked(): void
     {
-        $this->signIn();
         $category = Category::factory()->for($this->event)->create();
         $spare = Category::factory()->for($this->event)->create();
-        $exhibitor = Exhibitor::factory()->for($this->event)->create();
-        $exhibitor->categories()->attach([$category->id, $spare->id], ['event_id' => $this->event->id]);
+        $exhibitor = Exhibitor::factory()->inCategory($category)->create();
+        $this->signIn();
         $registration = EventRegistration::factory()->for($this->event)->create();
         Vote::create([
             'event_id' => $this->event->id,
@@ -135,10 +146,10 @@ class AdminPanelTest extends TestCase
         ]);
 
         Livewire::test(ManageExhibitors::class)
-            ->callAction(TestAction::make('edit')->table($exhibitor), data: ['categories' => [$spare->id]])
-            ->assertHasActionErrors(['categories']);
+            ->callAction(TestAction::make('edit')->table($exhibitor), data: ['category_id' => $spare->id])
+            ->assertHasNoActionErrors();
 
-        $this->assertSame(2, $exhibitor->categories()->count());
+        $this->assertSame($category->id, $exhibitor->fresh()->category_id, 'The disabled field is not saved.');
     }
 
     public function test_event_settings_reject_invalid_venue_ips(): void

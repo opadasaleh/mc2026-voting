@@ -42,20 +42,20 @@ class SchemaConstraintsTest extends TestCase
     {
         [$event, $category, $first, , $registration] = $this->votingSetup();
         $other = Category::factory()->for($event)->create();
-        $other->exhibitors()->attach($first->id, ['event_id' => $event->id]);
+        $inOther = Exhibitor::factory()->inCategory($other)->create();
 
         $this->vote($registration, $category, $first);
-        $this->vote($registration, $other, $first);
+        $this->vote($registration, $other, $inOther);
 
         $this->assertSame(2, Vote::count());
     }
 
-    public function test_a_vote_must_target_an_exhibitor_entered_in_that_category(): void
+    public function test_a_vote_must_target_an_exhibitor_of_that_category(): void
     {
         [$event, $category, , , $registration] = $this->votingSetup();
-        $notEntered = Exhibitor::factory()->for($event)->create();
+        $elsewhere = Exhibitor::factory()->inCategory(Category::factory()->for($event)->create())->create();
 
-        $this->assertRejectedByDatabase(fn () => $this->vote($registration, $category, $notEntered), self::FOREIGN_KEY);
+        $this->assertRejectedByDatabase(fn () => $this->vote($registration, $category, $elsewhere), self::FOREIGN_KEY);
     }
 
     public function test_a_vote_requires_a_registration_for_that_event(): void
@@ -74,21 +74,41 @@ class SchemaConstraintsTest extends TestCase
         $this->assertRejectedByDatabase(fn () => $this->vote($registration, $category, $exhibitor, $otherEvent->id), self::FOREIGN_KEY);
     }
 
-    public function test_an_exhibitor_cannot_be_entered_in_a_category_of_another_event(): void
+    public function test_an_exhibitor_cannot_be_put_in_a_category_of_another_event(): void
     {
-        [$event, $category] = $this->votingSetup();
-        $foreign = Exhibitor::factory()->create();
+        [, $category] = $this->votingSetup();
+        $otherEvent = Event::factory()->create();
 
-        $this->assertRejectedByDatabase(fn () => $category->exhibitors()->attach($foreign->id, ['event_id' => $event->id]), self::FOREIGN_KEY);
-        $this->assertRejectedByDatabase(fn () => $category->exhibitors()->attach($foreign->id, ['event_id' => $foreign->event_id]), self::FOREIGN_KEY);
+        $this->assertRejectedByDatabase(fn () => Exhibitor::factory()->for($otherEvent)->create(['category_id' => $category->id]), self::FOREIGN_KEY);
     }
 
-    public function test_an_exhibitor_with_votes_cannot_be_unassigned_from_the_category(): void
+    public function test_an_exhibitor_without_votes_can_change_category(): void
     {
-        [, $category, $exhibitor, , $registration] = $this->votingSetup();
+        [$event, , $exhibitor] = $this->votingSetup();
+        $other = Category::factory()->for($event)->create();
+
+        $exhibitor->update(['category_id' => $other->id]);
+
+        $this->assertSame($other->id, $exhibitor->fresh()->category_id);
+    }
+
+    public function test_an_exhibitor_with_votes_cannot_be_moved_to_another_category(): void
+    {
+        [$event, $category, $exhibitor, , $registration] = $this->votingSetup();
+        $other = Category::factory()->for($event)->create();
         $this->vote($registration, $category, $exhibitor);
 
-        $this->assertRejectedByDatabase(fn () => $category->exhibitors()->detach($exhibitor->id), self::FOREIGN_KEY);
+        $this->assertRejectedByDatabase(fn () => $exhibitor->update(['category_id' => $other->id]), self::FOREIGN_KEY);
+    }
+
+    public function test_an_event_has_at_most_three_categories(): void
+    {
+        $event = Event::factory()->create();
+        Category::factory()->for($event)->count(3)->create();
+
+        $this->expectException(LogicException::class);
+
+        Category::factory()->for($event)->create();
     }
 
     public function test_votes_are_immutable(): void
@@ -128,8 +148,7 @@ class SchemaConstraintsTest extends TestCase
     {
         $event = Event::factory()->votingOpen()->create();
         $category = Category::factory()->for($event)->create();
-        [$first, $second] = Exhibitor::factory()->for($event)->count(2)->create()->all();
-        $category->exhibitors()->attach([$first->id, $second->id], ['event_id' => $event->id]);
+        [$first, $second] = Exhibitor::factory()->inCategory($category)->count(2)->create()->all();
         $registration = EventRegistration::factory()->for($event)->create();
 
         return [$event, $category, $first, $second, $registration];

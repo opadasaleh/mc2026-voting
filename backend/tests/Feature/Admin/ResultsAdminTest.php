@@ -43,8 +43,7 @@ class ResultsAdminTest extends TestCase
         $this->event = Event::factory()->create(['slug' => 'mc2026'])->refresh();
         $this->admin = User::factory()->create(['username' => 'admin']);
         $this->category = Category::factory()->for($this->event)->create(['name' => 'People']);
-        $this->exhibitor = Exhibitor::factory()->for($this->event)->create(['name' => 'Robo Arm']);
-        $this->category->exhibitors()->attach($this->exhibitor->id, ['event_id' => $this->event->id]);
+        $this->exhibitor = Exhibitor::factory()->inCategory($this->category)->create(['name' => 'Robo Arm']);
 
         Filament::setCurrentPanel('admin');
     }
@@ -175,8 +174,7 @@ class ResultsAdminTest extends TestCase
     {
         $other = Event::factory()->create();
         $category = Category::factory()->for($other)->create();
-        $exhibitor = Exhibitor::factory()->for($other)->create();
-        $category->exhibitors()->attach($exhibitor->id, ['event_id' => $other->id]);
+        $exhibitor = Exhibitor::factory()->inCategory($category)->create();
         $registration = EventRegistration::factory()->for($other)->create();
 
         return Vote::create(['event_id' => $other->id, 'visitor_id' => $registration->visitor_id, 'category_id' => $category->id, 'exhibitor_id' => $exhibitor->id]);

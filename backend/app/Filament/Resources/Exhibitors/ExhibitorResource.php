@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Exhibitors;
 
 use App\Filament\Resources\Exhibitors\Pages\ManageExhibitors;
 use App\Models\Exhibitor;
-use App\Rules\KeepsVotedCategories;
 use BackedEnum;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
@@ -22,13 +21,14 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ToggleColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 /**
- * Exhibitors of the current event (F9): photo, description, categories.
+ * Exhibitors of the current event (F9): photo, description and the one category they compete in.
  */
 class ExhibitorResource extends Resource
 {
@@ -58,18 +58,20 @@ class ExhibitorResource extends Resource
                     ->directory('exhibitors')
                     ->visibility('public')
                     ->maxSize(4096),
-                Select::make('categories')
+                Select::make('category_id')
+                    ->label('Category')
                     ->relationship(
-                        'categories',
+                        'category',
                         'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->where('categories.event_id', Filament::getTenant()->getKey()),
+                        modifyQueryUsing: fn (Builder $query) => $query->where('event_id', Filament::getTenant()->getKey())->orderBy('sort_order'),
                     )
-                    ->multiple()
                     ->preload()
                     ->required()
-                    // The pivot carries event_id so the database can enforce same-event entries.
-                    ->pivotData(fn (): array => ['event_id' => Filament::getTenant()->getKey()])
-                    ->rule(fn (?Exhibitor $record) => new KeepsVotedCategories($record)),
+                    // Votes are tied to the category; the database also blocks this change.
+                    ->disabled(fn (?Exhibitor $record): bool => (bool) $record?->votes()->exists())
+                    ->helperText(fn (?Exhibitor $record): string => $record?->votes()->exists()
+                        ? 'Locked: this exhibitor already has votes in this category.'
+                        : 'Each exhibitor competes in exactly one category.'),
                 Toggle::make('is_active')->label('Active')->default(true),
             ]);
     }
@@ -82,11 +84,12 @@ class ExhibitorResource extends Resource
             ->columns([
                 ImageColumn::make('photo_path')->label('')->disk(config('voting.photos_disk'))->circular(),
                 TextColumn::make('name')->searchable()->weight('bold'),
-                TextColumn::make('categories.name')->badge()->label('Categories'),
+                TextColumn::make('category.name')->badge()->label('Category')->sortable(),
                 TextColumn::make('votes_count')->counts('votes')->label('Votes'),
                 ToggleColumn::make('is_active')->label('Active'),
             ])
             ->filters([
+                SelectFilter::make('category_id')->label('Category')->relationship('category', 'name'),
                 TrashedFilter::make(),
             ])
             ->recordActions([

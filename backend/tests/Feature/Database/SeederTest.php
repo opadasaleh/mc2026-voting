@@ -3,7 +3,6 @@
 namespace Tests\Feature\Database;
 
 use App\Models\Event;
-use App\Models\Exhibitor;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -24,7 +23,7 @@ class SeederTest extends TestCase
         $this->assertSame([], $event->allowed_cidrs, 'No venue IPs until an admin sets them.');
         $this->assertSame(3, $event->categories()->count());
         $this->assertSame(9, $event->exhibitors()->count());
-        $this->assertSame(0, Exhibitor::doesntHave('categories')->count());
+        $this->assertSame([3, 3, 3], $event->categories()->withCount('exhibitors')->pluck('exhibitors_count')->all());
         $this->assertSame(1, User::where('username', 'admin')->count());
     }
 }

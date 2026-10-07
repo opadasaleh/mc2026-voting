@@ -33,11 +33,16 @@ return [
     | Admin panel
     |--------------------------------------------------------------------------
     |
+    | An event has at most max_categories_per_event award categories, and each
+    | exhibitor competes in exactly one of them.
+    |
     | Times are stored in UTC and shown to admins in this time zone. Exhibitor
     | photos go to this filesystem disk (use an S3 disk such as Supabase
     | Storage in production so the app stays stateless).
     |
     */
+
+    'max_categories_per_event' => (int) env('MAX_CATEGORIES_PER_EVENT', 3),
 
     'display_timezone' => env('ADMIN_TIMEZONE', 'Asia/Amman'),
 
