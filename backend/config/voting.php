@@ -28,6 +28,21 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Admin panel
+    |--------------------------------------------------------------------------
+    |
+    | Times are stored in UTC and shown to admins in this time zone. Exhibitor
+    | photos go to this filesystem disk (use an S3 disk such as Supabase
+    | Storage in production so the app stays stateless).
+    |
+    */
+
+    'display_timezone' => env('ADMIN_TIMEZONE', 'Asia/Amman'),
+
+    'photos_disk' => env('PHOTOS_DISK', 'public'),
+
     'rate_limits' => [
         'venue_ip_per_minute' => (int) env('RATE_LIMIT_VENUE_IP', 5000),
         'offsite_ip_per_minute' => (int) env('RATE_LIMIT_OFFSITE_IP', 30),
