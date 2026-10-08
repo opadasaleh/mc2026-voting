@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Sanctum\HasApiTokens;
+use Laravel\Sanctum\NewAccessToken;
 
 #[Fillable([
     'slug', 'name', 'description', 'is_active', 'voting_enabled', 'opens_at', 'closes_at',
@@ -16,6 +18,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class Event extends Model
 {
+    // Display tokens for the TV screens belong to the event itself.
+    use HasApiTokens;
+
     /** @use HasFactory<EventFactory> */
     use HasFactory;
 
@@ -67,6 +72,14 @@ class Event extends Model
         }
 
         return 'open';
+    }
+
+    /**
+     * A read-only token for one TV screen of this event: results only, nothing else.
+     */
+    public function createDisplayToken(string $name, ?CarbonInterface $expiresAt = null): NewAccessToken
+    {
+        return $this->createToken($name, ['results:read', 'event:'.$this->getKey()], $expiresAt);
     }
 
     /**

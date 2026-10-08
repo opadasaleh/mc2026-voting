@@ -100,9 +100,9 @@ class DemoVotes extends Command
                     'updated_at' => $verifiedAt,
                 ];
 
-                foreach ($categories as $category) {
-                    if (random_int(1, 100) > 85) {
-                        continue; // not everyone votes in every category
+                foreach ($categories->shuffle()->values() as $position => $category) {
+                    if ($position > 0 && random_int(1, 100) > 85) {
+                        continue; // not everyone votes in every category, but every demo visitor votes at least once
                     }
 
                     $votes[] = [

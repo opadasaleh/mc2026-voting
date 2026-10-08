@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\ApiError;
+use App\Http\Middleware\EnsureDisplayToken;
 use App\Http\Middleware\EnsureOnSite;
 use App\Http\Middleware\EnsureVisitorToken;
 use Illuminate\Foundation\Application;
@@ -19,12 +20,16 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['on-site' => EnsureOnSite::class, 'visitor' => EnsureVisitorToken::class]);
-        // Both need the bound Event model; on routes with both, the token is checked before the Wi-Fi gate.
+        $middleware->alias(['on-site' => EnsureOnSite::class, 'visitor' => EnsureVisitorToken::class, 'display' => EnsureDisplayToken::class]);
+        // These need the bound Event model; on routes with both, the token is checked before the Wi-Fi gate.
+        $middleware->appendToPriorityList(SubstituteBindings::class, EnsureDisplayToken::class);
         $middleware->appendToPriorityList(SubstituteBindings::class, EnsureVisitorToken::class);
         $middleware->appendToPriorityList(EnsureVisitorToken::class, EnsureOnSite::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Expected client errors (off-site, wrong code, bad token...) are answers, not failures to log.
+        $exceptions->dontReport(ApiError::class);
+
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

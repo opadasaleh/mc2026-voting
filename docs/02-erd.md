@@ -264,8 +264,8 @@ Append-only record of sensitive admin actions: login, event/settings change, vot
 | `created_at` | timestamptz | |
 
 ### Tokens (Sanctum `personal_access_tokens`)
-- **Visitor token** — issued after OTP verification **for one event**; abilities `["vote", "event:<event_id>"]`. Using it on another event's endpoints is rejected, which forces the OTP flow for that event.
-- **Display token** (TV screen) — created by an admin for one event; abilities `["results:read", "event:<event_id>"]`.
+- **Visitor token** — owner (`tokenable`) is the **visitor**; issued after OTP verification **for one event**; abilities `["vote", "event:<event_id>"]`. Using it on another event's endpoints is rejected, which forces the OTP flow for that event.
+- **Display token** (TV screen) — owner is the **event** itself; created by an admin on the event's **TV displays** page; abilities `["results:read", "event:<event_id>"]`; expires after 1, 7 or 30 days; `last_used_at` shows when the screen was last seen (updated at most once a minute). Revoking deletes the row. Creation and revocation are audit-logged (`display_token.created`, `display_token.revoked`).
 
 ## 3. Privacy & security of stored data (F14, Privacy NFR)
 

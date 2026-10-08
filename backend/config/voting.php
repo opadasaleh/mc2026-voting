@@ -83,6 +83,27 @@ return [
         'venue_ip_per_minute' => (int) env('RATE_LIMIT_VENUE_IP', 5000),
         'offsite_ip_per_minute' => (int) env('RATE_LIMIT_OFFSITE_IP', 30),
         'votes_per_token_per_minute' => (int) env('RATE_LIMIT_VOTES_PER_TOKEN', 30),
+        'results_per_token_per_minute' => (int) env('RATE_LIMIT_RESULTS_PER_TOKEN', 120),
+        'results_per_ip_per_minute' => (int) env('RATE_LIMIT_RESULTS_PER_IP', 600),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Results (TV screen)
+    |--------------------------------------------------------------------------
+    |
+    | The standings are cached for cache_seconds so any number of screens cost
+    | one tally query per second. Each stream connection holds a PHP worker, so
+    | it re-checks every poll_seconds and closes after max_seconds; the browser
+    | then reconnects on its own.
+    |
+    */
+
+    'results' => [
+        'cache_seconds' => (int) env('RESULTS_CACHE_SECONDS', 1),
+        'stream_poll_seconds' => (int) env('RESULTS_STREAM_POLL_SECONDS', 2),
+        'stream_heartbeat_seconds' => (int) env('RESULTS_STREAM_HEARTBEAT_SECONDS', 15),
+        'stream_max_seconds' => (int) env('RESULTS_STREAM_MAX_SECONDS', 300),
     ],
 
 ];

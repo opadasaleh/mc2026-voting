@@ -2,7 +2,7 @@
 
 Digital Voting System (multi-event; first event: Maker Collective 2026) · Laravel API consumed by the Next.js frontend (visitor voting page + TV results screen).
 
-> Status: revision 3. **Implemented:** every visitor endpoint (`GET /events`, `GET /events/{event}`, `GET …/categories`, `GET …/access-check`, `POST …/auth/otp/request`, `POST …/auth/otp/verify`, `GET …/me`, `POST …/auth/logout`, `POST …/votes`), the error shape and the rate limits. **Still to build:** `GET …/results` and `GET …/results/stream` (TV screen). Until CPF's SMS gateway is connected, codes are written to `backend/storage/logs/sms.log` instead of being sent. The other endpoints are still to be built and may change slightly; the frontend developer should confirm this covers both screens.
+> Status: revision 4. **Every endpoint in this contract is implemented**: the visitor endpoints (`GET /events`, `GET /events/{event}`, `GET …/categories`, `GET …/access-check`, `POST …/auth/otp/request`, `POST …/auth/otp/verify`, `GET …/me`, `POST …/auth/logout`, `POST …/votes`), the TV endpoints (`GET …/results`, `GET …/results/stream`), the error shape and the rate limits. Display tokens are created in the admin panel under **TV displays**. Until CPF's SMS gateway is connected, codes are written to `backend/storage/logs/sms.log` instead of being sent.
 > The admin panel (Filament) is **not** part of this API; it is a separate server-rendered interface.
 
 ## 1. Conventions
@@ -75,6 +75,7 @@ Keeping the gate first means off-site clients learn nothing about the system.
 | `otp/verify` | 10 / min per phone · per-code attempt cap (`otp_max_attempts`, default 5) |
 | `votes` | 30 / min per token |
 | Authenticated reads (`/me`) | 120 / min per token |
+| `results`, `results/stream` (TV) | 120 / min per display token · 600 / min per IP. Not tied to the venue Wi-Fi: a screen may be on a different network |
 | Venue IPs (inside `allowed_cidrs`) | **No per-IP throttle**; only a safety ceiling of 5,000 requests / min per IP to stop a runaway script |
 | Off-site IPs (outside `allowed_cidrs`) | 30 / min per IP on every endpoint |
 
@@ -228,7 +229,9 @@ Safe to retry on any network failure: the database `UNIQUE (visitor_id, category
 
 ## 6. Results (TV screen)
 
-Both results endpoints require a **display token for this event** (or an equivalent admin-created token); they are not available to visitors.
+Both results endpoints require a **display token for this event**; they are not available to visitors, and a display token cannot be used for anything else (a visitor endpoint answers `401` with `reason: invalid`).
+
+**Display tokens.** An admin creates one per screen in the event's admin panel (**TV displays → New display token**: a screen name and an expiry of 1, 7 or 30 days). The token is shown **once**, then only its name, "last seen" time and expiry are listed. **Revoke** stops a screen within a few seconds, including an open stream. The token may be sent as `Authorization: Bearer <token>` or as `?token=<token>` (needed by `EventSource`). The results endpoints have **no on-site gate**: the TV may be on a staff or wired network.
 
 ### `GET /events/{event}/results`
 
@@ -244,14 +247,15 @@ Both results endpoints require a **display token for this event** (or an equival
           { "rank": 1, "exhibitor_id": 12, "name": "Smart Greenhouse", "photo_url": "https://…/12.jpg", "votes": 91 },
           { "rank": 2, "exhibitor_id": 7,  "name": "Robo Arm",         "photo_url": null,                "votes": 78 }
         ] }
-    ]
+    ],
+    "voting": { "status": "open", "opens_at": null, "closes_at": "2026-11-14T18:00:00Z" }
 } }
 ```
-Ties share a rank (1, 1, 3). Every active exhibitor appears, including those with 0 votes. `total_voters` = distinct visitors who cast at least one vote in this event. The tally query is cached ≈ 1 s server-side.
+Ties share a rank (1, 1, 3). Every active exhibitor appears, including those with 0 votes. A deactivated or removed exhibitor still appears if it holds votes, so no vote silently disappears. `total_voters` = distinct visitors who cast at least one vote in this event. `voting` is the same object as in `GET /events/{event}` (for a "voting closes at…" or "final results" banner). The tally is cached ≈ 1 s server-side, so any number of screens cost one tally query per second.
 
 ### `GET /events/{event}/results/stream` (Server-Sent Events)
 
-`Content-Type: text/event-stream`. Auth: `?token=<display token>` — the browser `EventSource` API cannot set headers. (A `fetch`-based SSE client may send the `Authorization` header instead.) The display token is read-only, scoped to `results:read` for this event, revocable, and stripped from access logs.
+`Content-Type: text/event-stream`. Auth: `?token=<display token>` — the browser `EventSource` API cannot set headers. (A `fetch`-based SSE client may send the `Authorization` header instead.) The display token is read-only, scoped to `results:read` for this event, expiring and revocable. Because it travels in the URL, the deployment should keep query strings for this path out of web-server access logs.
 
 ```
 retry: 3000
@@ -261,11 +265,19 @@ data: {"event":{…},"generated_at":"…","total_voters":412,"total_votes":1190,
 
 : heartbeat
 ```
-- A full `snapshot` (same JSON as `GET …/results` `data`) is sent immediately on connect, then again whenever tallies change (checked about every 2 s).
-- A `: heartbeat` comment is sent every ≈ 15 s to keep proxies from closing the connection.
-- The browser reconnects automatically after drops (`retry: 3000`); because every message is a **full snapshot**, a reconnect needs no catch-up logic.
+- A full `snapshot` (same JSON as `GET …/results` `data`) is sent immediately on connect, then again whenever the tallies or the voting status change (checked about every 2 s). `generated_at` alone changing does not trigger a message.
+- A `: heartbeat` comment is sent when nothing changed for ≈ 15 s, to keep proxies from closing the connection.
+- The server **closes the stream after ≈ 5 minutes** (each open stream holds a server worker) and when the token is revoked or the event is deactivated. The browser reconnects automatically (`retry: 3000`); because every message is a **full snapshot**, a reconnect needs no catch-up logic. Treat a close as normal.
 - **Fallback:** if SSE is unavailable, poll `GET …/results` every 2–3 s.
-- `401 UNAUTHENTICATED` is returned for a missing/revoked/wrong-event token — the screen should show "display token invalid".
+- `401 UNAUTHENTICATED` (`details.reason`: `missing` | `invalid` | `expired` | `wrong_event`) is returned for a bad, revoked, expired or other-event token. `EventSource` does not retry after a 401, so on `onerror` with `readyState === CLOSED`, check `GET …/results` once and show "display token invalid — ask an admin for a new one".
+
+Minimal TV client:
+
+```js
+const es = new EventSource(`${API}/api/v1/events/${slug}/results/stream?token=${encodeURIComponent(token)}`);
+es.addEventListener('snapshot', (e) => render(JSON.parse(e.data)));
+es.onerror = () => { if (es.readyState === EventSource.CLOSED) showTokenProblem(); };
+```
 
 ---
 
@@ -319,7 +331,7 @@ Voting happens only at the venue, and the venue provides Wi-Fi covering the whol
 
 ## 8. Admin-only functions (not in this API)
 
-Available only in the Filament admin panel (username + password + TOTP MFA). **Each event is its own panel** (event switcher; panel URL contains the event slug) and all admins can open every event's panel. Per event: category/exhibitor CRUD and assignment, photo upload, voting open/close and window, on-site settings and OTP policy, results reset, results CSV export (F13), visitor list CSV export (F14), display-token creation/revocation, a **"Use my current IP"** helper that adds the admin's current public IP to `allowed_cidrs` (for setup and event-day fixes), audit log. Global: create/archive events, manage admins.
+Available only in the Filament admin panel (username + password + TOTP MFA). **Each event is its own panel** (event switcher; panel URL contains the event slug) and all admins can open every event's panel. Per event: category/exhibitor CRUD and assignment, photo upload, voting open/close and window, on-site settings and OTP policy, results reset, results CSV export (F13), visitor list CSV export (F14), display-token creation/revocation (**TV displays** page), a **"Use my current IP"** helper that adds the admin's current public IP to `allowed_cidrs` (for setup and event-day fixes), audit log. Global: create/archive events, manage admins.
 
 ## 9. Requirement traceability (API)
 

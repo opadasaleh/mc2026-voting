@@ -5,6 +5,7 @@ namespace App\Services\Results;
 use App\Models\Category;
 use App\Models\Event;
 use App\Models\Exhibitor;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -16,6 +17,22 @@ use Illuminate\Support\Facades\DB;
  */
 class Standings
 {
+    /**
+     * forEvent(), cached for a moment so many screens share one tally query.
+     *
+     * @return array<string, mixed>
+     */
+    public function cachedForEvent(Event $event): array
+    {
+        $seconds = config('voting.results.cache_seconds');
+
+        if ($seconds <= 0) {
+            return $this->forEvent($event);
+        }
+
+        return Cache::remember('results:event:'.$event->getKey(), $seconds, fn () => $this->forEvent($event));
+    }
+
     /**
      * @return array{
      *     event: array{slug: string, name: string},

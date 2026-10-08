@@ -77,5 +77,16 @@ class AppServiceProvider extends ServiceProvider
         // Per visitor token (the token is not resolved yet when the limiter runs, so key on its hash).
         RateLimiter::for('votes', fn (Request $request) => Limit::perMinute(config('voting.rate_limits.votes_per_token_per_minute'))
             ->by('votes:'.hash('sha256', (string) $request->bearerToken())));
+
+        // TV screens: per display token (header or ?token=), plus a per-IP ceiling against token guessing.
+        RateLimiter::for('results', function (Request $request) {
+            $token = $request->bearerToken() ?? $request->query('token');
+
+            return [
+                Limit::perMinute(config('voting.rate_limits.results_per_token_per_minute'))
+                    ->by('results:'.hash('sha256', is_string($token) ? $token : '')),
+                Limit::perMinute(config('voting.rate_limits.results_per_ip_per_minute'))->by('results-ip:'.$request->ip()),
+            ];
+        });
     }
 }

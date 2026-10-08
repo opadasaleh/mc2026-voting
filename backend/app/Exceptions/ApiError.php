@@ -81,6 +81,14 @@ class ApiError extends RuntimeException
         return new self('UNAUTHENTICATED', 'Please verify your phone number for this event.', 401, ['reason' => $reason]);
     }
 
+    /**
+     * @param  'missing'|'invalid'|'expired'|'wrong_event'  $reason
+     */
+    public static function displayUnauthenticated(string $reason): self
+    {
+        return new self('UNAUTHENTICATED', 'This display token is not valid for this event.', 401, ['reason' => $reason]);
+    }
+
     public static function alreadyVoted(int $categoryId, int $exhibitorId): self
     {
         return new self('ALREADY_VOTED', 'You have already voted in this category.', 409, [
