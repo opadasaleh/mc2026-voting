@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import FooterWrapper from "@/components/footer/FooterWrapper";
 
 
 const helveticaArabic = localFont({
@@ -56,8 +57,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         nexa.variable,
         helveticaArabic.variable
       )}    >
-      <body className="min-h-full flex flex-col">
-        {children}
+      <body className="min-h-screen flex flex-col">
+        <main className="flex-1">
+          {children}
+        </main>
+
+        <FooterWrapper />
       </body>
     </html>
   );
