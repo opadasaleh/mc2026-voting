@@ -24,43 +24,45 @@ export function ExhibitorCard({
         <Card
             onClick={onSelect}
             className={`
-                relative cursor-pointer overflow-hidden pt-0
-                transition-all duration-300
+                relative cursor-pointer overflow-hidden p-0
+                transition-all duration-200
                 ${selected
-                    ? "ring-4 ring-[var(--primary)]"
+                    ? "ring-3 ring-[var(--primary)]"
                     : "hover:-translate-y-1"
                 }
             `}
         >
-            <img
-                src={photoUrl}
-                alt={name}
-                className="aspect-video w-full object-cover"
-            />
+            <div className="relative aspect-[4/3] w-full overflow-hidden">
+                <img
+                    src={photoUrl}
+                    alt={name}
+                    className="h-full w-full object-cover"
+                />
 
-            <CardHeader>
-                <CardTitle>
+                {selected && (
+                    <div
+                        className="
+                            absolute right-3 top-3
+                            flex h-8 w-8 items-center justify-center
+                            rounded-full
+                            bg-[var(--primary)]
+                            font-bold text-white
+                        "
+                    >
+                        ✓
+                    </div>
+                )}
+            </div>
+
+            <CardHeader className="gap-1 p-4">
+                <CardTitle className="text-base">
                     {name}
                 </CardTitle>
 
-                <CardDescription>
+                <CardDescription className="line-clamp-2 text-sm">
                     {description}
                 </CardDescription>
             </CardHeader>
-
-            {selected && (
-                <div
-                    className="
-                        absolute right-3 top-3
-                        flex h-8 w-8 items-center justify-center
-                        rounded-full
-                        bg-[var(--primary)]
-                        text-white
-                    "
-                >
-                    ✓
-                </div>
-            )}
         </Card>
     );
 }

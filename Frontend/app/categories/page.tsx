@@ -1,34 +1,75 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import Link from "next/link";
+
+
+type Category = {
+    id: number;
+    name: string;
+    description: string;
+    color: string;
+    textColor: string;
+};
+
+const mockCategories: Category[] = [
+    {
+        id: 1,
+        name: "Category One",
+        description: "Category description goes here.",
+        color: "var(--chart-1)",
+        textColor: "#ffffff",
+    },
+    {
+        id: 2,
+        name: "Category Two",
+        description: "Category description goes here.",
+        color: "var(--chart-2)",
+        textColor: "var(--foreground)",
+    },
+    {
+        id: 3,
+        name: "Category Three",
+        description: "Category description goes here.",
+        color: "var(--chart-4)",
+        textColor: "#ffffff",
+    },
+];
 
 export default function CategoriesPage() {
     const [activeCategory, setActiveCategory] = useState(1);
 
     const panelsRef = useRef<(HTMLElement | null)[]>([]);
     const isAnimating = useRef(false);
-    const categories = [
-        {
-            id: 1,
-            name: "Category One",
-            color: "var(--chart-1)",
-            textColor: "#ffffff",
-        },
-        {
-            id: 2,
-            name: "Category Two",
-            color: "var(--chart-2)",
-            textColor: "var(--foreground)",
-        },
-        {
-            id: 3,
-            name: "Category Three",
-            color: "var(--chart-4)",
-            textColor: "#ffffff",
-        },
-    ];
+
+    const [votedCategories, setVotedCategories] = useState<number[]>([]);
+
+    const [categories, setCategories] =
+        useState<Category[]>(mockCategories);
+
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
+
+
+    useEffect(() => {
+        // TODO: API
+        // Replace this mock with:
+        // GET /events/{event}/me
+        //
+        // response.data.votes:
+        // [
+        //     { category_id: 1, exhibitor_id: 12, voted_at: "..." }
+        // ]
+
+        // Temporary mock until API integration
+        const storedVotes: number[] = JSON.parse(
+            sessionStorage.getItem("votedCategories") || "[]"
+        );
+
+        setVotedCategories(storedVotes);
+    }, []);
+
 
 
     const handleCategoryClick = (id: number) => {
@@ -36,13 +77,15 @@ export default function CategoriesPage() {
 
         if (id === activeCategory || isAnimating.current)
             return;
-
         isAnimating.current = true;
-        const clickedPanel = panelsRef.current[id - 1];
-        const currentPanel = panelsRef.current[activeCategory - 1];
 
-        if (!clickedPanel || !currentPanel)
+        const clickedPanel = panelsRef.current[id - 1] ?? null;
+        const currentPanel = panelsRef.current[activeCategory - 1] ?? null;
+
+        if (clickedPanel === null || currentPanel === null) {
+            isAnimating.current = false;
             return;
+        }
 
         const currentContent =
             currentPanel.querySelector(".category-content");
@@ -130,11 +173,45 @@ export default function CategoriesPage() {
             0.35
         );
     };
+
+
+    if (isLoading) {
+        return (
+            <main className="flex h-screen items-center justify-center">
+                <p className="text-lg font-medium">
+                    Loading categories...
+                </p>
+            </main>
+        );
+    }
+
+    if (error) {
+        return (
+            <main className="flex h-screen items-center justify-center p-6">
+                <p className="text-center text-red-500">
+                    {error}
+                </p>
+            </main>
+        );
+    }
+
+    if (categories.length === 0) {
+        return (
+            <main className="flex h-screen items-center justify-center p-6">
+                <p className="text-center text-lg font-medium">
+                    No categories available.
+                </p>
+            </main>
+        );
+    }
+
     return (
         <main className="h-screen overflow-hidden">
+
             <div className="flex h-full w-full">
                 {categories.map((category) => {
                     const isActive = activeCategory === category.id;
+                    const hasVoted = votedCategories.includes(category.id);
 
                     return (
                         <section
@@ -143,8 +220,13 @@ export default function CategoriesPage() {
                                 panelsRef.current[category.id - 1] = el;
                             }}
                             style={{
-                                backgroundColor: category.color,
-                                color: category.textColor,
+                                backgroundColor: hasVoted
+                                    ? "var(--success)"
+                                    : category.color,
+
+                                color: hasVoted
+                                    ? "#ffffff"
+                                    : category.textColor,
                             }}
                             className={`
                                 relative h-full overflow-hidden border-r border-white/30
@@ -172,6 +254,7 @@ export default function CategoriesPage() {
                                 </h2>
                             </button>
 
+
                             {/* محتوى الـ Category */}
                             <div
                                 className="category-content flex h-full flex-col p-6"
@@ -184,22 +267,40 @@ export default function CategoriesPage() {
                                     0{category.id}
                                 </span>
 
-                                <div className="mt-auto">
+                                <div className="mt-auto pb-80">
                                     <h2 className="text-4xl font-bold">
                                         {category.name}
                                     </h2>
 
                                     <p className="mt-3 text-sm">
-                                        Category description goes here.
+                                        {category.description}
                                     </p>
 
-                                    <Link
-                                        href={`/categories/${category.id}`}
-                                        className="mt-8 flex items-center justify-between"
-                                    >
-                                        <span>Explore</span>
-                                        <span>→</span>
-                                    </Link>
+
+                                    {hasVoted ? (
+                                        <div className="mt-8 flex items-center justify-between">
+                                            <span>Voted</span>
+                                            <span>✓</span>
+                                        </div>
+                                    ) : (
+                                        <Link
+                                            href={`/categories/${category.id}`}
+                                            className="
+        group mt-8 flex items-center justify-between
+        border-b-2 border-current
+        pb-2 font-semibold
+        transition-opacity
+        hover:opacity-70
+        active:opacity-50
+    "
+                                        >
+                                            <span>Explore</span>
+
+                                            <span className="transition-transform group-hover:translate-x-1">
+                                                →
+                                            </span>
+                                        </Link>
+                                    )}
                                 </div>
                             </div>
                         </section>

@@ -26,7 +26,7 @@ export function VoteAlert({
             <AlertDialogTrigger
                 disabled={disabled}
                 className="
-                    mt-8 inline-flex h-10 w-full
+                    inline-flex h-10 w-full
                     items-center justify-center
                     rounded-md
                     bg-[var(--primary)]
