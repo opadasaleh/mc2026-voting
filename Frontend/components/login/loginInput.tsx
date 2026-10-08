@@ -14,9 +14,13 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import Image from "next/image"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
+import { ApiError } from "@/lib/api/client"
+import { messageFor, redirectForError } from "@/lib/api/errors"
+import { getVisitorToken, savePendingLogin } from "@/lib/api/session"
+import { requestOtp } from "@/lib/api/voting"
 
 
 
@@ -24,28 +28,21 @@ export function InputFieldgroup() {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState("")
     const router = useRouter()
+    const { event: eventSlug } = useParams<{ event: string }>()
 
-
-    async function requestOtp(data: {
-        full_name: string
-        phone: string
-    }) {
-        console.log("Mock OTP request:", data)
-
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-
-        return { success: true }
-    }
-
-
-
+    // Already verified for this event: go straight to voting.
+    useEffect(() => {
+        if (getVisitorToken(eventSlug)) {
+            router.replace(`/${eventSlug}/categories`)
+        }
+    }, [eventSlug, router])
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
 
         const formData = new FormData(event.currentTarget)
 
-        const name = String(formData.get("name"))
+        const name = String(formData.get("name")).trim()
         let phone = String(formData.get("phone"))
         const countryCode = String(formData.get("countryCode"))
 
@@ -66,16 +63,19 @@ export function InputFieldgroup() {
         setError("")
 
         try {
-            const result = await requestOtp(data)
+            const result = await requestOtp(eventSlug, data)
 
-            if (result.success) {
-                sessionStorage.setItem("phone", fullPhone)
-                router.push("/otp")
-            } else {
-                setError("Something went wrong. Please try again.")
+            // Name + phone are needed again on the OTP page to resend a code.
+            savePendingLogin(eventSlug, { ...data, resend_after: result.resend_after, requested_at: Date.now() })
+            router.push(`/${eventSlug}/otp`)
+        } catch (err) {
+            if (err instanceof ApiError && err.code === "OTP_RATE_LIMITED") {
+                // A code was sent moments ago (e.g. the visitor came back from the OTP page): reuse it.
+                savePendingLogin(eventSlug, { ...data, resend_after: err.retryAfter, requested_at: Date.now() })
+                router.push(`/${eventSlug}/otp`)
+            } else if (!redirectForError(err, eventSlug, router)) {
+                setError(messageFor(err))
             }
-        } catch {
-            setError("Unable to connect. Please try again.")
         } finally {
             setIsLoading(false)
         }

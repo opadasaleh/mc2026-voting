@@ -101,6 +101,7 @@ Layered, from friendly to absolute:
 | Reading data through Supabase's public API | RLS on every table with no policies; `anon`/`authenticated` privileges revoked; a test fails if a table lacks RLS | migration `…000010` · `RowLevelSecurityTest` |
 | Malicious spreadsheet formulas in exports (names like `=HYPERLINK(...)`) | Cells starting with `= + - @` are neutralised | `Csv::cell` · `ResultsAdminTest` |
 | Changing or deleting votes quietly | No update path; reset needs closed voting + typed confirmation; every sensitive admin action audited (append-only log) | `Dashboard`, `AuditLog` · `ResultsAdminTest` |
+| Other websites calling the API from a visitor's browser | CORS allows only the frontend origins in `FRONTEND_URLS`; no cookies are used by the API | `config/cors.php` · `CorsTest` |
 | Request floods | Per-token and per-phone limits; off-site IPs 30/min; venue IP high ceiling only (so the shared venue IP never blocks real visitors) | `AppServiceProvider` rate limiters · `PublicReadTest`, `VoteTest` |
 
 ## 6. Visitor data protection (F14, Privacy NFR)
@@ -114,5 +115,4 @@ Layered, from friendly to absolute:
 | Gap | Risk | Planned fix |
 |---|---|---|
 | Admin TOTP secret is stored unencrypted in `users.app_authentication_secret` | Someone with a database dump could generate an admin's MFA codes (they would still need the password) | Add the `encrypted` cast for the secret and recovery codes, with a migration that encrypts existing values |
-| CORS allows any origin (framework default) | Low: the API uses bearer tokens, not cookies, so other sites cannot act as a visitor; but the contract promises a frontend-only origin | Publish `config/cors.php` and restrict to the frontend URL(s) from an env variable |
 | SMS is sent inside the request | A slow gateway slows `otp/request` | Move sending to the queue (database queue already configured) once the gateway is chosen |

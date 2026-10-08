@@ -34,6 +34,7 @@ Start from `.env.example`. Values that matter in production:
 | `DB_EMULATE_PREPARES` | `true` when using the **transaction** pooler (port 6543), `false` for the session pooler (5432) | Transaction pooler recommended with several servers ([08](08-scaling.md)) |
 | `SESSION_DRIVER` / `CACHE_STORE` / `QUEUE_CONNECTION` | `database` | Keeps servers stateless |
 | `TRUSTED_PROXIES` | IP/CIDR of your load balancer or reverse proxy | **Required behind a proxy**, otherwise every visitor appears to come from the proxy and fails the on-site check. Leave empty if clients connect directly |
+| `FRONTEND_URLS` | `https://vote.example.org` (comma-separated if several) | Browser origins allowed to call the API (CORS). Must match the frontend's URL exactly |
 | `PHOTOS_DISK` | `s3` (configure `AWS_*` for the bucket; needs `composer require league/flysystem-aws-s3-v3`) | `public` only on a single server |
 | `SMS_DRIVER` | The gateway driver name once built | `log` writes codes to `storage/logs/sms.log` (demo only) |
 | `LOG_LEVEL` | `info` | |

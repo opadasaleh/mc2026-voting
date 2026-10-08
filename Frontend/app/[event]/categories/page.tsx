@@ -3,84 +3,70 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { messageFor, redirectForError } from "@/lib/api/errors";
+import { getVisitorToken } from "@/lib/api/session";
+import { getCategories, getMe } from "@/lib/api/voting";
+import type { Category } from "@/types/api";
 
-
-type Category = {
-    id: number;
-    name: string;
-    description: string;
-    color: string;
-    textColor: string;
-};
-
-const mockCategories: Category[] = [
-    {
-        id: 1,
-        name: "Category One",
-        description: "Category description goes here.",
-        color: "var(--chart-1)",
-        textColor: "#ffffff",
-    },
-    {
-        id: 2,
-        name: "Category Two",
-        description: "Category description goes here.",
-        color: "var(--chart-2)",
-        textColor: "var(--foreground)",
-    },
-    {
-        id: 3,
-        name: "Category Three",
-        description: "Category description goes here.",
-        color: "var(--chart-4)",
-        textColor: "#ffffff",
-    },
+// Panel colours by position (an event has at most 3 categories).
+const PALETTE = [
+    { color: "var(--chart-1)", textColor: "#ffffff" },
+    { color: "var(--chart-2)", textColor: "var(--foreground)" },
+    { color: "var(--chart-4)", textColor: "#ffffff" },
 ];
 
 export default function CategoriesPage() {
-    const [activeCategory, setActiveCategory] = useState(1);
+    const { event } = useParams<{ event: string }>();
+    const router = useRouter();
+
+    // Index into `categories`, not a category id: ids are not 1..3 in every event.
+    const [activeCategory, setActiveCategory] = useState(0);
 
     const panelsRef = useRef<(HTMLElement | null)[]>([]);
     const isAnimating = useRef(false);
 
     const [votedCategories, setVotedCategories] = useState<number[]>([]);
 
-    const [categories, setCategories] =
-        useState<Category[]>(mockCategories);
+    const [categories, setCategories] = useState<Category[]>([]);
 
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
 
 
     useEffect(() => {
-        // TODO: API
-        // Replace this mock with:
-        // GET /events/{event}/me
-        //
-        // response.data.votes:
-        // [
-        //     { category_id: 1, exhibitor_id: 12, voted_at: "..." }
-        // ]
+        const token = getVisitorToken(event);
+        if (!token) return;
 
-        // Temporary mock until API integration
-        const storedVotes: number[] = JSON.parse(
-            sessionStorage.getItem("votedCategories") || "[]"
-        );
+        // GET /me is the source of truth for "already voted" (F3).
+        Promise.all([getCategories(event), getMe(event, token)])
+            .then(([loadedCategories, me]) => {
+                const voted = me.votes.map((vote) => vote.category_id);
+                setCategories(loadedCategories);
+                setVotedCategories(voted);
+                // Open the first category still to vote in.
+                const firstOpen = loadedCategories.findIndex((category) => !voted.includes(category.id));
+                setActiveCategory(firstOpen === -1 ? 0 : firstOpen);
+            })
+            .catch((err) => {
+                if (!redirectForError(err, event, router)) {
+                    setError(messageFor(err));
+                }
+            })
+            .finally(() => setIsLoading(false));
+    }, [event, router]);
 
-        setVotedCategories(storedVotes);
-    }, []);
 
 
+    const handleCategoryClick = (index: number) => {
 
-    const handleCategoryClick = (id: number) => {
 
-
-        if (id === activeCategory || isAnimating.current)
+        if (index === activeCategory || isAnimating.current)
             return;
         isAnimating.current = true;
 
-        const clickedPanel = panelsRef.current[id - 1] ?? null;
-        const currentPanel = panelsRef.current[activeCategory - 1] ?? null;
+        const clickedPanel = panelsRef.current[index] ?? null;
+        const currentPanel = panelsRef.current[activeCategory] ?? null;
 
         if (clickedPanel === null || currentPanel === null) {
             isAnimating.current = false;
@@ -101,7 +87,7 @@ export default function CategoriesPage() {
 
         const tl = gsap.timeline({
             onComplete: () => {
-                setActiveCategory(id);
+                setActiveCategory(index);
                 isAnimating.current = false;
             },
         });
@@ -209,24 +195,25 @@ export default function CategoriesPage() {
         <main className="h-screen overflow-hidden">
 
             <div className="flex h-full w-full">
-                {categories.map((category) => {
-                    const isActive = activeCategory === category.id;
+                {categories.map((category, index) => {
+                    const isActive = activeCategory === index;
                     const hasVoted = votedCategories.includes(category.id);
+                    const palette = PALETTE[index % PALETTE.length];
 
                     return (
                         <section
                             key={category.id}
                             ref={(el) => {
-                                panelsRef.current[category.id - 1] = el;
+                                panelsRef.current[index] = el;
                             }}
                             style={{
                                 backgroundColor: hasVoted
                                     ? "var(--success)"
-                                    : category.color,
+                                    : palette.color,
 
                                 color: hasVoted
                                     ? "#ffffff"
-                                    : category.textColor,
+                                    : palette.textColor,
                             }}
                             className={`
                                 relative h-full overflow-hidden border-r border-white/30
@@ -236,7 +223,7 @@ export default function CategoriesPage() {
                             {/* الاسم العمودي - موجود دائماً */}
                             <button
                                 type="button"
-                                onClick={() => handleCategoryClick(category.id)}
+                                onClick={() => handleCategoryClick(index)}
                                 className="
         category-label
         absolute inset-y-0 left-0 z-50
@@ -264,7 +251,7 @@ export default function CategoriesPage() {
                                 }}
                             >
                                 <span className="text-sm">
-                                    0{category.id}
+                                    {String(index + 1).padStart(2, "0")}
                                 </span>
 
                                 <div className="mt-auto pb-80">
@@ -284,7 +271,7 @@ export default function CategoriesPage() {
                                         </div>
                                     ) : (
                                         <Link
-                                            href={`/categories/${category.id}`}
+                                            href={`/${event}/categories/${category.id}`}
                                             className="
         group mt-8 flex items-center justify-between
         border-b-2 border-current

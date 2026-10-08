@@ -1,63 +1,69 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { ExhibitorCard } from "@/components/categories/exhibitorsCard";
 import { VoteAlert } from "@/components/categories/voteAlert";
 import { useRouter } from "next/navigation";
+import { ApiError } from "@/lib/api/client";
+import { messageFor, redirectForError } from "@/lib/api/errors";
+import { getVisitorToken } from "@/lib/api/session";
+import { castVote, getCategories, getMe } from "@/lib/api/voting";
+import type { Category } from "@/types/api";
 
 type CategoryPageProps = {
     params: Promise<{
+        event: string;
         categoryId: string;
     }>;
-};
-
-type Exhibitor = {
-    id: number;
-    name: string;
-    short_description: string;
-    photo_url: string;
-};
-
-type Category = {
-    id: number;
-    slug: string;
-    name: string;
-    description: string;
-    exhibitors: Exhibitor[];
-};
-
-const mockCategory: Category = {
-    id: 1,
-    slug: "category-one",
-    name: "Category One",
-    description: "Category description goes here.",
-    exhibitors: Array.from({ length: 25 }, (_, index) => ({
-        id: index + 1,
-        name: `Exhibitor ${index + 1}`,
-        short_description: `Description for exhibitor ${index + 1}.`,
-        photo_url: `https://avatar.vercel.sh/exhibitor-${index + 1}`,
-    })),
 };
 
 export default function CategoryPage({
     params,
 }: CategoryPageProps) {
-    
-    const { categoryId } = use(params);
+
+    const { event, categoryId } = use(params);
 
     const [selectedExhibitor, setSelectedExhibitor] =
         useState<number | null>(null);
-    
-    const [isLoading, setIsLoading] = useState(false);
+
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
-    
+
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [voteError, setVoteError] = useState("");
     const router = useRouter();
-    
-    const [category, setCategory] = useState<Category | null>(
-        mockCategory
-    );
-    
+
+    const [category, setCategory] = useState<Category | null>(null);
+
+    useEffect(() => {
+        const token = getVisitorToken(event);
+        if (!token) {
+            router.replace(`/${event}/login`);
+            return;
+        }
+
+        Promise.all([getCategories(event), getMe(event, token)])
+            .then(([categories, me]) => {
+                const found = categories.find((item) => item.id === Number(categoryId));
+                if (!found) {
+                    setError("This category is not available.");
+                    return;
+                }
+                // Votes cannot be changed: a category already voted in goes back to the list.
+                if (me.votes.some((vote) => vote.category_id === found.id)) {
+                    router.replace(`/${event}/categories`);
+                    return;
+                }
+                setCategory(found);
+            })
+            .catch((err) => {
+                if (!redirectForError(err, event, router)) {
+                    setError(messageFor(err));
+                }
+            })
+            .finally(() => setIsLoading(false));
+    }, [event, categoryId, router]);
+
     const [currentPage, setCurrentPage] = useState(1);
     const exhibitorsPerPage = 9;
     
@@ -105,38 +111,37 @@ export default function CategoryPage({
         if (selectedExhibitor === null || isSubmitting)
             return;
 
+        const token = getVisitorToken(event);
+        if (!token) {
+            router.replace(`/${event}/login`);
+            return;
+        }
+
         setIsSubmitting(true);
-        setError("");
+        setVoteError("");
 
         try {
-            // TODO: API
-            // POST /events/{event}/votes
-            //
-            // body:
-            // {
-            //     category_id: Number(categoryId),
-            //     exhibitor_id: selectedExhibitor,
-            //     lat: ...,
-            //     lng: ...
-            // }
+            // 201 = counted, 200 = this exact vote was already counted (safe retry): both mean done.
+            await castVote(event, token, {
+                category_id: Number(categoryId),
+                exhibitor_id: selectedExhibitor,
+            });
 
-            // Temporary mock until API integration
-            const votedCategories: number[] = JSON.parse(
-                sessionStorage.getItem("votedCategories") || "[]"
-            );
+            router.push(`/${event}/categories`);
+        } catch (err) {
+            if (redirectForError(err, event, router)) return;
 
-            if (!votedCategories.includes(Number(categoryId))) {
-                votedCategories.push(Number(categoryId));
+            if (err instanceof ApiError && err.code === "ALREADY_VOTED") {
+                // Voted for someone else in this category (e.g. on another tab): it stands.
+                router.push(`/${event}/categories`);
+                return;
             }
 
-            sessionStorage.setItem(
-                "votedCategories",
-                JSON.stringify(votedCategories)
+            setVoteError(
+                err instanceof ApiError && err.code === "NETWORK_ERROR"
+                    ? "Connection lost. Tap Submit Vote again; you will not be counted twice."
+                    : messageFor(err)
             );
-
-            router.push("/categories");
-        } catch {
-            setError("Failed to submit vote. Please try again.");
         } finally {
             setIsSubmitting(false);
         }
@@ -150,7 +155,7 @@ export default function CategoryPage({
 
                 <button
                     type="button"
-                    onClick={() => router.push("/categories")}
+                    onClick={() => router.push(`/${event}/categories`)}
                     className="
             flex items-center gap-2
             text-sm font-medium
@@ -180,8 +185,8 @@ export default function CategoryPage({
                         <ExhibitorCard
                             key={exhibitor.id}
                             name={exhibitor.name}
-                            description={exhibitor.short_description}
-                            photoUrl={exhibitor.photo_url}
+                            description={exhibitor.short_description ?? ""}
+                            photoUrl={exhibitor.photo_url ?? "/images/default-user.jpg"}
                             selected={selectedExhibitor === exhibitor.id}
                             onSelect={() =>
                                 setSelectedExhibitor(exhibitor.id)
@@ -245,6 +250,12 @@ export default function CategoryPage({
                             <p className="truncate font-semibold">
                                 {selected.name}
                             </p>
+
+                            {voteError && (
+                                <p className="text-xs text-destructive">
+                                    {voteError}
+                                </p>
+                            )}
                         </div>
 
                         <div className="w-40">

@@ -1,27 +1,27 @@
 "use client"
 
 import Image from "next/image"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useMemo } from "react"
+import { useParams, useRouter } from "next/navigation"
 
 import { InputOTPForm } from "@/components/otp/otpInput"
+import { getPendingLogin } from "@/lib/api/session"
+import { useHydrated } from "@/lib/useHydrated"
 
 export default function OtpPage() {
     const router = useRouter()
-    const [isChecking, setIsChecking] = useState(true)
+    const { event } = useParams<{ event: string }>()
+    const hydrated = useHydrated()
+    // Decided once on arrival; verifying clears the pending login, which must not bounce the page.
+    const hasPendingLogin = useMemo(() => hydrated && getPendingLogin(event) !== null, [event, hydrated])
 
     useEffect(() => {
-        const phone = sessionStorage.getItem("phone")
-
-        if (!phone) {
-            router.replace("/login")
-            return
+        if (hydrated && !hasPendingLogin) {
+            router.replace(`/${event}/login`)
         }
+    }, [event, hasPendingLogin, hydrated, router])
 
-        setIsChecking(false)
-    }, [router])
-
-    if (isChecking) {
+    if (!hasPendingLogin) {
         return null
     }
 

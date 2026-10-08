@@ -6,10 +6,15 @@ import { ArrowRight, Check, Loader2, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { useRouter } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
+import { ApiError } from "@/lib/api/client"
+import { messageFor, redirectForError } from "@/lib/api/errors"
+import { clearPendingLogin, getPendingLogin, savePendingLogin, saveVisitorToken } from "@/lib/api/session"
+import { requestOtp, verifyOtp } from "@/lib/api/voting"
 
 const CODE_LENGTH = 6
-const RESEND_SECONDS = 30
+// Fallback only: the server says how long to wait (resend_after / retry_after).
+const RESEND_SECONDS = 60
 
 type Status = "idle" | "loading" | "error" | "success"
 
@@ -24,42 +29,6 @@ const SLOT_COLORS = [
 ]
 const SUCCESS = "var(--success, #22c55e)"
 const ERROR = "var(--chart-5, #a52a3a)"
-
-// TODO: replace with real API call
-async function verifyOtp(data: {
-    phone: string
-    code: string
-}) {
-    console.log("Verify OTP request:", data)
-    
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    
-    return {
-        data: {
-            token: "mock-token-123",
-            token_type: "Bearer",
-            expires_at: "2026-11-14T18:00:00Z",
-            visitor: {
-                full_name: "Mock User",
-            },
-        },
-    }
-}
-
-// TODO: connect resend OTP API
-// TODO: replace with real API call
-async function resendOtp(data: {
-    phone: string
-}) {
-    console.log("Resend OTP request:", data)
-
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    return {
-        success: true,
-    }
-}
-
 
 function Slot({
     char,
@@ -99,20 +68,22 @@ function Slot({
     )
 }
 
+// The resend timer starts where the server said, minus the time already spent.
+function initialSeconds(event: string): number {
+    const pending = getPendingLogin(event)
+    if (!pending) return RESEND_SECONDS
+    const elapsed = Math.floor((Date.now() - pending.requested_at) / 1000)
+    return Math.max(0, pending.resend_after - elapsed)
+}
+
+// Rendered only in the browser (the OTP page waits for hydration), so storage can be read on mount.
 export function InputOTPForm() {
+    const { event } = useParams<{ event: string }>()
     const [otp, setOtp] = useState("")
-    const [phone, setPhone] = useState("")
-    const [seconds, setSeconds] = useState(RESEND_SECONDS)
+    const [seconds, setSeconds] = useState(() => initialSeconds(event))
     const [status, setStatus] = useState<Status>("idle")
+    const [message, setMessage] = useState("")
     const router = useRouter()
-
-    useEffect(() => {
-        const savedPhone = sessionStorage.getItem("phone")
-
-        if (savedPhone) {
-            setPhone(savedPhone)
-        }
-    }, [])
 
     useEffect(() => {
         if (seconds <= 0) return
@@ -123,30 +94,43 @@ export function InputOTPForm() {
     const submit = useCallback(
         async (code: string) => {
             if (code.length !== CODE_LENGTH || status === "loading" || status === "success") return
+            const pending = getPendingLogin(event)
+            if (!pending) {
+                router.replace(`/${event}/login`)
+                return
+            }
+
             setStatus("loading")
+            setMessage("")
 
             try {
-                const response = await verifyOtp({
-                    phone,
-                    code,
-                })
+                const response = await verifyOtp(event, { phone: pending.phone, code })
 
-                sessionStorage.setItem(
-                    "token",
-                    response.data.token
-                )
-
+                saveVisitorToken(event, response.token, response.expires_at)
+                clearPendingLogin(event)
                 setStatus("success")
 
                 setTimeout(() => {
-                    router.push("/categories")
+                    router.push(`/${event}/categories`)
                 }, 1200)
-            } catch {
+            } catch (err) {
+                if (redirectForError(err, event, router)) return
+
                 setStatus("error")
                 setOtp("")
+
+                if (err instanceof ApiError && err.code === "OTP_INVALID") {
+                    const left = Number(err.details.attempts_remaining ?? 0)
+                    setMessage(`That code isn't right. ${left} ${left === 1 ? "try" : "tries"} left.`)
+                } else if (err instanceof ApiError && err.code === "OTP_EXPIRED") {
+                    setMessage("This code has expired. Tap Resend to get a new one.")
+                    setSeconds(0)
+                } else {
+                    setMessage(messageFor(err))
+                }
             }
         },
-        [phone, status]
+        [event, router, status]
     )
 
     function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -154,12 +138,33 @@ export function InputOTPForm() {
         submit(otp)
     }
 
-    function handleResend() {
+    async function handleResend() {
         if (seconds > 0 || status === "loading" || status === "success") return
+
+        const pending = getPendingLogin(event)
+        if (!pending) {
+            router.replace(`/${event}/login`)
+            return
+        }
+
         setOtp("")
-        setStatus("idle")
-        setSeconds(RESEND_SECONDS)
-        // TODO: call your resend endpoint here
+        setStatus("loading")
+        setMessage("")
+
+        try {
+            const result = await requestOtp(event, { full_name: pending.full_name, phone: pending.phone })
+            savePendingLogin(event, { ...pending, resend_after: result.resend_after, requested_at: Date.now() })
+            setSeconds(result.resend_after)
+            setStatus("idle")
+            setMessage("A new code is on its way.")
+        } catch (err) {
+            if (redirectForError(err, event, router)) return
+            setStatus("error")
+            if (err instanceof ApiError && err.retryAfter > 0) {
+                setSeconds(err.retryAfter)
+            }
+            setMessage(messageFor(err))
+        }
     }
 
     const isSuccess = status === "success"
@@ -202,16 +207,16 @@ export function InputOTPForm() {
 
             <p
                 role="status"
-                className="h-5 text-sm font-medium transition-colors"
+                className="min-h-5 text-center text-sm font-medium transition-colors"
                 style={{
                     color: isSuccess ? SUCCESS : isError ? ERROR : "var(--muted-foreground)",
                 }}
             >
                 {isSuccess
                     ? "Code verified. You're in."
-                    : isError
+                    : message || (isError
                         ? "That code isn't right. Check it and try again."
-                        : "Paste works too."}
+                        : "Paste works too.")}
             </p>
 
             <Button
