@@ -1,3 +1,5 @@
+import type { Voting } from "@/types/api"
+
 export type Standing = {
     rank: number
     exhibitor_id: number
@@ -22,4 +24,5 @@ export type ResultsSnapshot = {
     total_voters: number
     total_votes: number
     categories: Category[]
+    voting: Voting
 }

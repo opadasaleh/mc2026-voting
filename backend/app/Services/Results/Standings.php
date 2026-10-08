@@ -1,0 +1,98 @@
+<?php
+
+namespace App\Services\Results;
+
+use App\Models\Category;
+use App\Models\Event;
+use App\Models\Exhibitor;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Per-category standings for an event (F7), in the shape of GET /events/{event}/results.
+ *
+ * Active exhibitors appear even with 0 votes. Categories and exhibitors that were
+ * deactivated or removed still appear if they hold votes, so no vote ever silently
+ * disappears from the results. Ties share a rank (1, 1, 3).
+ */
+class Standings
+{
+    /**
+     * forEvent(), cached for a moment so many screens share one tally query.
+     *
+     * @return array<string, mixed>
+     */
+    public function cachedForEvent(Event $event): array
+    {
+        $seconds = config('voting.results.cache_seconds');
+
+        if ($seconds <= 0) {
+            return $this->forEvent($event);
+        }
+
+        return Cache::remember('results:event:'.$event->getKey(), $seconds, fn () => $this->forEvent($event));
+    }
+
+    /**
+     * @return array{
+     *     event: array{slug: string, name: string},
+     *     generated_at: string,
+     *     total_voters: int,
+     *     total_votes: int,
+     *     categories: list<array{id: int, name: string, total_votes: int, standings: list<array{rank: int, exhibitor_id: int, name: string, photo_url: ?string, votes: int}>}>
+     * }
+     */
+    public function forEvent(Event $event): array
+    {
+        // votes per exhibitor (each exhibitor competes in exactly one category), including those with none
+        $entries = DB::table('exhibitors as e')
+            ->leftJoin('votes as v', 'v.exhibitor_id', '=', 'e.id')
+            ->where('e.event_id', $event->getKey())
+            ->groupBy('e.category_id', 'e.id')
+            ->select('e.category_id', 'e.id as exhibitor_id', DB::raw('count(v.id) as votes'))
+            ->get()
+            ->groupBy('category_id');
+
+        $categories = Category::where('event_id', $event->getKey())->orderBy('sort_order')->orderBy('name')->get();
+        $exhibitors = Exhibitor::withTrashed()->where('event_id', $event->getKey())->get()->keyBy('id');
+
+        $result = [];
+
+        foreach ($categories as $category) {
+            $rows = collect($entries->get($category->id, []))
+                ->map(fn ($entry) => ['exhibitor' => $exhibitors->get($entry->exhibitor_id), 'votes' => (int) $entry->votes])
+                ->filter(fn (array $row) => $row['exhibitor'] !== null
+                    && ($row['votes'] > 0 || ($row['exhibitor']->is_active && ! $row['exhibitor']->trashed())))
+                ->sortBy([['votes', 'desc'], fn (array $a, array $b) => strcasecmp($a['exhibitor']->name, $b['exhibitor']->name)])
+                ->values();
+
+            $categoryVotes = $rows->sum('votes');
+
+            if (! $category->is_active && $categoryVotes === 0) {
+                continue;
+            }
+
+            $result[] = [
+                'id' => $category->id,
+                'name' => $category->name,
+                'total_votes' => $categoryVotes,
+                'standings' => $rows->map(fn (array $row) => [
+                    // competition ranking: 1 + number of entries with strictly more votes
+                    'rank' => 1 + $rows->where('votes', '>', $row['votes'])->count(),
+                    'exhibitor_id' => $row['exhibitor']->id,
+                    'name' => $row['exhibitor']->name,
+                    'photo_url' => $row['exhibitor']->photoUrl(),
+                    'votes' => $row['votes'],
+                ])->all(),
+            ];
+        }
+
+        return [
+            'event' => ['slug' => $event->slug, 'name' => $event->name],
+            'generated_at' => now()->toIso8601ZuluString(),
+            'total_voters' => $event->votes()->distinct()->count('visitor_id'),
+            'total_votes' => $event->votes()->count(),
+            'categories' => $result,
+        ];
+    }
+}

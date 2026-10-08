@@ -1,0 +1,13 @@
+# Local Postgres for the automated tests only (php artisan test). Real data lives in Supabase.
+# Start: docker compose up -d test-db
+services:
+  test-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: voting_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "54329:5432"
+    tmpfs:
+      - /var/lib/postgresql/data

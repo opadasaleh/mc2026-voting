@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["192.168.0.146"],
+  // LAN addresses allowed to open the dev server (testing from a phone).
+  allowedDevOrigins: ["192.168.0.146", "192.168.1.25"],
 };
 
 export default nextConfig;
