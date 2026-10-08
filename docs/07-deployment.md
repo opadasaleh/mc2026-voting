@@ -35,6 +35,7 @@ Start from `.env.example`. Values that matter in production:
 | `SESSION_DRIVER` / `CACHE_STORE` / `QUEUE_CONNECTION` | `database` | Keeps servers stateless |
 | `TRUSTED_PROXIES` | IP/CIDR of your load balancer or reverse proxy | **Required behind a proxy**, otherwise every visitor appears to come from the proxy and fails the on-site check. Leave empty if clients connect directly |
 | `FRONTEND_URLS` | `https://vote.example.org` (comma-separated if several) | Browser origins allowed to call the API (CORS). Must match the frontend's URL exactly |
+| `FRONTEND_URL` | `https://vote.example.org` | Address encoded in each event's QR code (`/{event}` is appended). Optional: defaults to the first non-localhost `FRONTEND_URLS` entry. Check it in the admin **QR code → Show QR code** preview before printing |
 | `PHOTOS_DISK` | `s3` (configure `AWS_*` for the bucket; needs `composer require league/flysystem-aws-s3-v3`) | `public` only on a single server |
 | `SMS_DRIVER` | The gateway driver name once built | `log` writes codes to `storage/logs/sms.log` (demo only) |
 | `LOG_LEVEL` | `info` | |
@@ -138,6 +139,7 @@ The same code runs on any machine at the venue (a laptop or mini PC with PHP 8.3
 - [ ] Event created; categories and exhibitors entered with photos; voting window set; venue Wi-Fi name entered.
 - [ ] SMS gateway live; test code received on Zain, Orange and Umniah numbers.
 - [ ] TV display token created for each screen; TV page tested end to end.
+- [ ] Voting QR code downloaded (admin dashboard → QR code → SVG), scanned with a phone, printed for posters and exhibitor tables.
 
 **At the venue (rehearsal)**
 - [ ] On the venue Wi-Fi: "Use my current IP" in Event settings (or enter the ranges from the venue); `access-check` returns `on_site: true` on an iPhone and an Android phone.

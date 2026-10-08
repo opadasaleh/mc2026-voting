@@ -1,5 +1,6 @@
 "use client"
 import { Leaderboard } from "@/components/leaderboard/leaderboard";
+import { ScanToVote } from "@/components/leaderboard/scanToVote";
 import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -115,6 +116,8 @@ export default function LeaderboardPage() {
                     {snapshot ? "No categories yet." : "Waiting for results..."}
                 </p>
             )}
+
+            {snapshot?.voting.status === "open" && <ScanToVote event={event} />}
         </main>
     )
 }

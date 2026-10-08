@@ -44,6 +44,24 @@ return [
 
     'max_categories_per_event' => (int) env('MAX_CATEGORIES_PER_EVENT', 3),
 
+    /*
+    | Public URL of the visitor voting site; each event's QR code points to
+    | {frontend_url}/{event-slug}. Defaults to the first FRONTEND_URLS entry
+    | that is not localhost (a phone cannot open the organiser's localhost).
+    */
+
+    'frontend_url' => rtrim((string) (env('FRONTEND_URL') ?: (static function (): string {
+        $urls = array_values(array_filter(array_map('trim', explode(',', (string) env('FRONTEND_URLS', 'http://localhost:3000')))));
+
+        foreach ($urls as $url) {
+            if (! preg_match('#^https?://(localhost|127\.0\.0\.1)(:|/|$)#', $url)) {
+                return $url;
+            }
+        }
+
+        return $urls[0] ?? 'http://localhost:3000';
+    })()), '/'),
+
     'display_timezone' => env('ADMIN_TIMEZONE', 'Asia/Amman'),
 
     'photos_disk' => env('PHOTOS_DISK', 'public'),

@@ -7,6 +7,7 @@ use App\Models\EventRegistration;
 use App\Services\Results\Standings;
 use App\Support\Audit;
 use App\Support\Csv;
+use App\Support\VotingQr;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Facades\Filament;
@@ -19,7 +20,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The current event's dashboard: voting open/close (F10), results export (F13),
- * visitor export (F14) and results reset. Every action is audit-logged.
+ * visitor export (F14), results reset and the voting QR code (F4). Every
+ * voting/results action is audit-logged.
  */
 class Dashboard extends BaseDashboard
 {
@@ -79,7 +81,41 @@ class Dashboard extends BaseDashboard
                 ->icon(Heroicon::OutlinedChartBar)
                 ->button()
                 ->color('gray'),
+            ActionGroup::make([
+                Action::make('showQrCode')
+                    ->label('Show QR code')
+                    ->icon(Heroicon::OutlinedEye)
+                    ->modalHeading('Voting QR code')
+                    ->modalContent(fn () => view('filament.voting-qr', [
+                        'svg' => VotingQr::svg($this->event()),
+                        'url' => VotingQr::url($this->event()),
+                        'isLocal' => (bool) preg_match('#^https?://(localhost|127\.0\.0\.1)(:|/|$)#', VotingQr::url($this->event())),
+                    ]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close'),
+                Action::make('downloadQrSvg')
+                    ->label('Download for print (SVG)')
+                    ->icon(Heroicon::OutlinedArrowDownTray)
+                    ->action(fn (): StreamedResponse => $this->downloadQr('svg', 'image/svg+xml', VotingQr::svg($this->event()))),
+                Action::make('downloadQrPng')
+                    ->label('Download image (PNG)')
+                    ->icon(Heroicon::OutlinedPhoto)
+                    ->action(fn (): StreamedResponse => $this->downloadQr('png', 'image/png', VotingQr::png($this->event()))),
+            ])
+                ->label('QR code')
+                ->icon(Heroicon::OutlinedQrCode)
+                ->button()
+                ->color('gray'),
         ];
+    }
+
+    private function downloadQr(string $extension, string $contentType, string $content): StreamedResponse
+    {
+        return response()->streamDownload(
+            fn () => print ($content),
+            $this->event()->slug.'-voting-qr.'.$extension,
+            ['Content-Type' => $contentType],
+        );
     }
 
     private function setVoting(bool $open): void

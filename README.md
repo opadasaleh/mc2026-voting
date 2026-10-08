@@ -35,6 +35,8 @@ npm run dev                   # http://localhost:3000 → /mc2026
 
 TV screen: create a token in the admin panel under **TV displays**, then open `http://localhost:3000/mc2026/leaderboard?token=<token>`. With `php artisan serve` (one request at a time on Windows), set `NEXT_PUBLIC_RESULTS_TRANSPORT=poll` so the TV does not hold the server; production uses live Server-Sent Events.
 
+**QR code:** the event dashboard in the admin panel has a **QR code** menu (preview, SVG for print, PNG). The TV screen shows a "Scan to vote" QR while voting is open. Both point to `{FRONTEND_URL}/{event}`; check the address in the preview.
+
 **Testing on a phone over Wi-Fi:** run `php artisan serve --host=0.0.0.0`, set `NEXT_PUBLIC_API_URL=http://<your-computer-ip>:8000` and add `http://<your-computer-ip>:3000` to `FRONTEND_URLS`. Add your LAN range (e.g. `192.168.1.0/24`) to the event's venue IPs, since the phone's address is a LAN address.
 
 **Backend tests** run against a local Postgres in Docker, never Supabase: `docker compose up -d test-db` then `php artisan test` (in `backend/`).
