@@ -2,7 +2,6 @@
 import { Button } from "@/components/ui/button"
 import {
     Field,
-    FieldDescription,
     FieldGroup,
     FieldLabel,
 } from "@/components/ui/field"
@@ -23,47 +22,63 @@ import { useRouter } from "next/navigation"
 
 export function InputFieldgroup() {
     const [isLoading, setIsLoading] = useState(false)
+    const [error, setError] = useState("")
     const router = useRouter()
 
-    async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-        event.preventDefault()
-        const formData = new FormData(event.currentTarget)
-        
-        setIsLoading(true)
+
+    async function requestOtp(data: {
+        full_name: string
+        phone: string
+    }) {
+        console.log("Mock OTP request:", data)
 
         await new Promise((resolve) => setTimeout(resolve, 2000))
 
-        setIsLoading(false)
+        return { success: true }
+    }
 
-    
-        const name = formData.get("name")
+
+
+
+    async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault()
+
+        const formData = new FormData(event.currentTarget)
+
+        const name = String(formData.get("name"))
         let phone = String(formData.get("phone"))
         const countryCode = String(formData.get("countryCode"))
-    
+
         phone = phone.replace(/\D/g, "")
-    
+
         if (phone.startsWith("0")) {
             phone = phone.slice(1)
         }
-        
+
         const fullPhone = `${countryCode}${phone}`
-    
+
         const data = {
             full_name: name,
             phone: fullPhone,
         }
 
-        sessionStorage.setItem("phone", fullPhone)
+        setIsLoading(true)
+        setError("")
 
-        router.push("/otp")
-    
-        console.log(data)
-        
-        // router.push(`/otp?phone=${encodeURIComponent(fullPhone)}`)
-        
-        console.log(name)
-        console.log(fullPhone)
-        console.log("submitted")
+        try {
+            const result = await requestOtp(data)
+
+            if (result.success) {
+                sessionStorage.setItem("phone", fullPhone)
+                router.push("/otp")
+            } else {
+                setError("Something went wrong. Please try again.")
+            }
+        } catch {
+            setError("Unable to connect. Please try again.")
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
@@ -113,12 +128,21 @@ export function InputFieldgroup() {
                                 id="phone"
                                 name="phone"
                                 type="tel"
+                                inputMode="numeric"
                                 placeholder="7xxxxxxxx"
                                 required
+                                onInput={(e) => {
+                                    e.currentTarget.value = e.currentTarget.value.replace(/\D/g, "")
+                                }}
                             />
                         </div>
                     </Field>
                     <Field orientation="vertical">
+                        {error && (
+                            <p className="text-sm text-destructive">
+                                {error}
+                            </p>
+                        )}
                         <Button type="submit" disabled={isLoading}>
                             {isLoading ? (
                                 <>
